@@ -49,7 +49,7 @@ max_iter = 50;
 map1 =  GetMap(size(im1), fea_sz, roi_size, location, l1_off, s1, pf_param.map_sigma_factor, 'trans_gaussian');
 %% Init Scale Estimator
 scale_param = init_scale_estimator;
-scale_param.train_sample = get_scale_sample(lfea1, scale_param.scaleFactors, scale_param.scale_window);
+scale_param.train_sample = get_scale_sample(lfea1, scale_param.scaleFactors_train, scale_param.scale_window_train);
 
 %% train
 
@@ -63,9 +63,9 @@ gnet_output = gsolver.net.blobs('conv5_f2');
 
 %% Iterations
 figure(11);stem(scale_param.y);
-diff_mask = ones(1, scale_param.number_of_scales);
-diff_mask((scale_param.number_of_scales+1)/2) = 0;
-
+diff_mask = ones(1, scale_param.number_of_scales_train);
+diff_mask((scale_param.number_of_scales_train+1)/2) = 0;
+gsolver.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(2), fea_sz(1)]);
 for i=1:max_iter
     gsolver.net.empty_net_param_diff();
     lsolver.net.empty_net_param_diff();
@@ -84,7 +84,7 @@ for i=1:max_iter
     
 %     g_diff = p;
 %     g_diff(17) = 1 - g_diff(17);
-    g_diff = (1*(scale_score-scale_param.y) - 0*min(scale_score((scale_param.number_of_scales+1)/2) - scale_score - 0.5, 0) .* diff_mask)/length(scale_param.number_of_scales);
+    g_diff = (1*(scale_score-scale_param.y) - 0*min(scale_score((scale_param.number_of_scales_train+1)/2) - scale_score - 0.5, 0) .* diff_mask)/length(scale_param.number_of_scales_train);
 
 %     g_diff = (0.0001*(scale_score-scale_param.y) + scale_score(17)-1 - 2*min(scale_score(17) - scale_score - 0.5, 0) .* diff_mask)/length(scale_param.number_of_scales);
    
@@ -101,7 +101,7 @@ t=0;
 fnum = size(GT,1);
 positions = zeros(fnum, 4);
 close all
-
+gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
 
 for im2_id = im1_id:fnum
     tic;
@@ -158,17 +158,17 @@ for im2_id = im1_id:fnum
     fsolver.net.forward_prefilled();  
     lfea2 = feature_blob4.get_data();
     lfea2 = bsxfun(@times, lfea2, cos_win);
-    scale_sample = get_scale_sample(lfea2, scale_param.scaleFactors, scale_param.scale_window);
+    scale_sample = get_scale_sample(lfea2, scale_param.scaleFactors_test, scale_param.scale_window_test);
     scale_score = gsolver.net.forward({scale_sample});
     scale_score = scale_score{1};
     [~, recovered_scale]= max(scale_score);
-    recovered_scale = scale_param.number_of_scales+1 - recovered_scale;
+    recovered_scale = scale_param.number_of_scales_test+1 - recovered_scale;
     % update the scale
-    scale_param.currentScaleFactor = scale_param.scaleFactors(recovered_scale);
+    scale_param.currentScaleFactor = scale_param.scaleFactors_test(recovered_scale);
     target_sz = location([3, 4]) * scale_param.currentScaleFactor;
     location = [l_x - floor(target_sz(1)/2), l_y - floor(target_sz(2)/2), target_sz(1), target_sz(2)];
     t = t + toc;
-    fprintf(' scale = %f\n', scale_param.scaleFactors(recovered_scale));
+    fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
     %% show results
       if im2_id == im1_id
        figure('Number','off', 'Name','Target Heat Maps');
@@ -183,7 +183,7 @@ for im2_id = im1_id:fnum
       end   
     
     %% Update lnet and gnet
-    if    recovered_scale ~= (scale_param.number_of_scales+1)/2 %mod(im2_id, 1) == 0
+    if    recovered_scale ~= (scale_param.number_of_scales_test+1)/2 %mod(im2_id, 1) == 0
 %         l_off = location_last(1:2)-location(1:2);
 %         map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
         
@@ -195,7 +195,7 @@ for im2_id = im1_id:fnum
         lfea2 = bsxfun(@times, lfea2, cos_win);
         map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l1_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
      
-        
+        gsolver.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(2), fea_sz(1)]);
         lsolver.net.set_net_phase('train');
         gsolver.net.set_net_phase('train');
         gsolver.net.empty_net_param_diff();
@@ -209,10 +209,10 @@ for im2_id = im1_id:fnum
         l_pre_map = lsolver.net.forward(fea2_train_l);
         
         
-        scale_param.train_sample = get_scale_sample(lfea2, scale_param.scaleFactors, scale_param.scale_window);
+        scale_param.train_sample = get_scale_sample(lfea2, scale_param.scaleFactors_train, scale_param.scale_window_train);
         scale_score = gsolver.net.forward({scale_param.train_sample});
         scale_score = scale_score{1};
-        diff_g = (1*(scale_score-scale_param.y) - 0*min(scale_score((scale_param.number_of_scales+1)/2) - scale_score - 0.5, 0) .* diff_mask)/length(scale_param.number_of_scales);
+        diff_g = (1*(scale_score-scale_param.y) - 0*min(scale_score((scale_param.number_of_scales_train+1)/2) - scale_score - 0.5, 0) .* diff_mask)/length(scale_param.number_of_scales_train);
         diff_g = {single(diff_g)};
 
 
@@ -226,6 +226,7 @@ for im2_id = im1_id:fnum
         gsolver.apply_update();
 %         gsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
         lsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
+        gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
     elseif rand(1)>0.5
 %         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
 %         roi2 = impreprocess(roi2);
