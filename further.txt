@@ -1,0 +1,5 @@
+1 Replace HOG with Garbor to enable end-to-end training.
+
+2 Add multiple occlusion pattern in both training and testing and determine the final results via max-pooling or an indicator regressed from the input deep feature. The indicator regression can be conducted in a recurrent manner through consecutive frames. Also note how to generate occlusion samples in a fully convolutional setting rather than the particle filter case.
+
+3. Figure out whether the comination of gnet and lnet can have a big impact on the final performance.
