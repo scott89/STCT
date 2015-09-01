@@ -1,5 +1,5 @@
 function  cnn2_pf_tracker(set_name, im1_id, ch_num)
-set_name = 'Singer2'; im1_id = 1; ch_num = 512;
+set_name = 'Shaking'; im1_id = 1; ch_num = 512;
 cleanupObj = onCleanup(@cleanupFun);
 % rng('default');
 % rng(0);

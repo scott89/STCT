@@ -1,7 +1,7 @@
 data_path = '~/Downloads/PF_CNN_SVM/data/';
 dataset = dir(data_path);
 % 
-for i=48:length(dataset)
+for i=42:length(dataset)
     if ~isdir([data_path dataset(i).name]) || strcmp(dataset(i).name, '.') || strcmp(dataset(i).name, '..') || strcmp(dataset(i).name, 'AE_train_Deer')
         continue;
     end
