@@ -7,7 +7,7 @@ scale_param.scale_sigma_factor = 1/4;        % standard deviation for the desire
 % scale_param.learning_rate = 0.025;%0.025;			% tracking model learning rate (denoted "eta" in the paper)
 scale_param.number_of_scales_test = 9; %33;%33;%55;%33;           % number of scale levels (denoted "S" in the paper)
 scale_param.number_of_scales_train = 33;
-scale_param.scale_step = 1.04;%1.02;%1.02;%1.1;%1.02;               % Scale increment factor (denoted "a" in the paper)
+scale_param.scale_step = 1.02;%1.02;%1.02;%1.1;%1.02;               % Scale increment factor (denoted "a" in the paper)
     
 
 

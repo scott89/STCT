@@ -161,16 +161,16 @@ for im2_id = im1_id:fnum
     scale_sample = get_scale_sample(lfea2, scale_param.scaleFactors_test, scale_param.scale_window_test);
     scale_score = gsolver.net.forward({scale_sample});
     scale_score = scale_score{1};
-    [max_scale_score, recovered_scale]= max(scale_score);
-    if im2_id <= 10 && max_scale_score < 0.5 || max_scale_score < 0.3
-        recovered_scale = (scale_param.number_of_scales_test+1)/2;
-    end
+    [~, recovered_scale]= max(scale_score);
+%     if im2_id <= 10 && max_scale_score < 0.5 || max_scale_score < 0.3
+%         recovered_scale = (scale_param.number_of_scales_test+1)/2;
+%     end
     recovered_scale = scale_param.number_of_scales_test+1 - recovered_scale;
     % update the scale
     scale_param.currentScaleFactor = scale_param.scaleFactors_test(recovered_scale);
     target_sz = location([3, 4]) * scale_param.currentScaleFactor;
-%     target_sz = floor(target_sz);
-    location = [l_x - floor(target_sz(1)/2), l_y - floor(target_sz(2)/2), target_sz(1), target_sz(2)];
+    target_sz = round(target_sz);
+    location = [l_x - round(target_sz(1)/2), l_y - round(target_sz(2)/2), target_sz(1), target_sz(2)];
     t = t + toc;
     fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
     %% show results

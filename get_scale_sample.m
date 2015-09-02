@@ -7,7 +7,7 @@ fea_sz = size(fea);
 scale_sample = single(zeros(fea_sz(1), fea_sz(2), fea_sz(3), length(scaleFactors)));
 
 for scale_id = 1:length(scaleFactors)
-    re_sz = 2 * round(fea_sz(1:2) / 2 * scaleFactors(scale_id));
+    re_sz = 2 * floor(fea_sz(1:2) / 2 * scaleFactors(scale_id));
    fea_resized = imresize(fea, re_sz); 
    xs_start = max((re_sz(2) - fea_sz(2))/2, 0) + 1;
    ys_start = max((re_sz(1) - fea_sz(1))/2, 0) + 1;
