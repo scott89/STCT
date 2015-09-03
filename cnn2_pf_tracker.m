@@ -165,12 +165,16 @@ for im2_id = im1_id:fnum
 %     if im2_id <= 10 && max_scale_score < 0.5 || max_scale_score < 0.3
 %         recovered_scale = (scale_param.number_of_scales_test+1)/2;
 %     end
+% if im2_id == 61
+%    64; 
+% end
     recovered_scale = scale_param.number_of_scales_test+1 - recovered_scale;
     % update the scale
     scale_param.currentScaleFactor = scale_param.scaleFactors_test(recovered_scale);
     target_sz = location([3, 4]) * scale_param.currentScaleFactor;
-    target_sz = round(target_sz);
-    location = [l_x - round(target_sz(1)/2), l_y - round(target_sz(2)/2), target_sz(1), target_sz(2)];
+%     target_sz = round(target_sz);
+%     location = [l_x - floor(target_sz(1)/2), l_y - floor(target_sz(2)/2), target_sz(1), target_sz(2)];
+    location = [l_x - target_sz(1)/2, l_y - target_sz(2)/2, target_sz(1), target_sz(2)];
     t = t + toc;
     fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
     %% show results
@@ -231,7 +235,7 @@ for im2_id = im1_id:fnum
 %         gsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
         lsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
-    elseif rand(1)>0.5
+    elseif rand(1)>0.8
 %         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
 %         roi2 = impreprocess(roi2);
 %         feature_input.set_data(single(roi2));
