@@ -235,7 +235,7 @@ for im2_id = im1_id:fnum
 %         gsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
         lsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
-    elseif rand(1)>0.8
+    elseif rand(1)>1
 %         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
 %         roi2 = impreprocess(roi2);
 %         feature_input.set_data(single(roi2));
