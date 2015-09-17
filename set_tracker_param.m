@@ -25,19 +25,24 @@ l1_off = [0,0];
 l2_off = [0,0];
 s1 = pf_param.roi_scale*[scale(1),scale(2)];
 s2 = pf_param.roi_scale*[scale(1),scale(2)];
-
+%% fsolver init
 feature_solver_def_file = 'feature_solver.prototxt';
-
-gnet_solver_def_file = ['solver/gnet_solver_' num2str(ch_num) '.prototxt'];
-lnet_solver_def_file = ['solver/lnet_solver_' num2str(ch_num) '.prototxt']; 
-select_lnet_solver_def_file = 'select_lnet_solver.prototxt'; 
-select_gnet_solver_def_file = 'select_gnet_solver.prototxt';
 model_file = 'VGG_ILSVRC_16_layers.caffemodel';
 fsolver = caffe.Solver(feature_solver_def_file);
 fsolver.net.copy_from(model_file);
+%% gnet solver init
+gnet_solver_def_file = ['solver/gnet_solver_' num2str(ch_num) '.prototxt'];
 gsolver = caffe.Solver(gnet_solver_def_file);
+%% lnet solver init
+lnet_solver_def_file = ['solver/lnet_solver_' num2str(ch_num) '.prototxt']; 
 lsolver = caffe.Solver(lnet_solver_def_file);
-
+%% Qnet solver init
+Qnet_solver_def_file = 'solver/Qnet_solver.prototxt';
+Qnet_model_file = 'Qnet_model/Qnet_model.caffemodel';
+Qsolver = caffe.Solver(Qnet_solver_def_file);
+if exist(Qnet_model_file, 'file')
+    Qsolver.net.copy_from(Qnet_model_file);
+end
 
 caffe.set_mode_gpu();
 gpu_id = 0;  % we will use the first gpu in this demo

@@ -1,9 +1,9 @@
-function  cnn2_pf_tracker(set_name, im1_id, ch_num)
+function  track_success = cnn2_pf_tracker(set_name, im1_id, ch_num)
 % set_name = 'Shaking'; im1_id = 1; ch_num = 512;
 cleanupObj = onCleanup(@cleanupFun);
 % rng('default');
 % rng(0);
-rand('state', 0);
+% rand('state', 0);
 set_tracker_param;
 % caffe('presolve_gnet');
 % caffe('presolve_lnet');
@@ -56,6 +56,7 @@ scale_param.train_sample = get_scale_sample(lfea1, scale_param.scaleFactors_trai
 
 lsolver.net.set_net_phase('train');
 gsolver.net.set_net_phase('train');
+Qsolver.net.set_net_phase('train');
 lnet_input = lsolver.net.blobs('data');
 gnet_input = gsolver.net.blobs('data');
 lnet_output = lsolver.net.blobs('conv5_f2');
@@ -102,7 +103,11 @@ fnum = size(GT,1);
 positions = zeros(fnum, 4);
 close all
 gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
-
+state = [];
+reward = [];
+action = [];
+forget_rate = 0.6;
+epsilon = 0.1;
 for im2_id = im1_id:fnum
     tic;
     lsolver.net.set_net_phase('test');
@@ -131,15 +136,11 @@ for im2_id = im1_id:fnum
     gfea2 = bsxfun(@times, gfea2, cos_win);
     
     l_pre_map = lsolver.net.forward({lfea2});
-    l_pre_map = permute(l_pre_map{1}, [2,1,3])/(max(l_pre_map{1}(:))+eps);
-    
-%     
-%     
-%     g_pre_map = gsolver.net.forward({gfea2});
-%     g_pre_map_train = g_pre_map{1};
-%     g_pre_map = permute(g_pre_map{1}, [2,1,3])/(max(g_pre_map{1}(:))+eps);
-    
-    
+%     l_pre_map = permute(l_pre_map{1}, [2,1,3])/(max(l_pre_map{1}(:))+eps);
+    l_pre_map = permute(l_pre_map{1}, [2,1,3]);
+   
+
+      
  
     %% compute local confidence
     l_roi_map = imresize(l_pre_map, roi_pos(4:-1:3));
@@ -147,11 +148,54 @@ for im2_id = im1_id:fnum
     l_im_map(roi_pos(2):roi_pos(2)+roi_pos(4)-1, roi_pos(1):roi_pos(1)+roi_pos(3)-1) = l_roi_map;
     l_im_map = l_im_map(pad+1:end-pad, pad+1:end-pad);
     [l_y, l_x] = find(l_im_map == max(l_im_map(:)), 1);
+    gt_center = GT(im2_id, 1:2) + GT(im2_id, 3:4)/2;
+   
+    action_t = Qsolver.net.forward({l_pre_map});
+    action_t = action_t{1};
 
+    state(:,:,:, im2_id) = l_pre_map;
+    off_policy = rand(1) < epsilon;
+    if off_policy
+        action_t = rand(4,1);
+        action_t = zeros(4,1);
+        if rand(1)>0.3
+            action_t(1) = 1;
+        else
+            action_t(2) = 1;
+        end
+        fprintf('Random \t')
+    end
+    [~, action_id_t] = max(action_t);
+    action = [action, action_id_t];
+    switch action_id_t
+        case 1
+            update = false;
+            move = false;
+        case 2
+            update = false;
+            move = true;
+            fprintf('move \t');
+        case 3
+            update = true;
+            move = false;
+            fprintf('update \t');
+        case 4
+            update = true;
+            move = true;
+            fprintf('move and update \t');
+    end
+            
     %% local scale estimation
+    if move
+        base_location_l = [l_x - location(3)/2, l_y - location(4)/2, location([3,4])];
+        reward_t = - ((l_x - gt_center(1))^2 + (l_y - gt_center(2))^2)^0.5/dia;
+    else
+        base_location_l = location;
+        reward_t = - (sum((location(1:2)+location(3:4)/2 - gt_center(1:2)).^2))^0.5/dia;
+    end
+   
+    reward = [reward, reward_t];
     
-    base_location_l = [l_x - location(3)/2, l_y - location(4)/2, location([3,4])];
-
     roi2 = ext_roi(im2, base_location_l, l2_off,  roi_size, s2);
     roi2 = impreprocess(roi2);
     feature_input.set_data(single(roi2));
@@ -162,21 +206,19 @@ for im2_id = im1_id:fnum
     scale_score = gsolver.net.forward({scale_sample});
     scale_score = scale_score{1};
     [~, recovered_scale]= max(scale_score);
-%     if im2_id <= 10 && max_scale_score < 0.5 || max_scale_score < 0.3
-%         recovered_scale = (scale_param.number_of_scales_test+1)/2;
-%     end
-% if im2_id == 61
-%    64; 
-% end
+
     recovered_scale = scale_param.number_of_scales_test+1 - recovered_scale;
     % update the scale
     scale_param.currentScaleFactor = scale_param.scaleFactors_test(recovered_scale);
     target_sz = location([3, 4]) * scale_param.currentScaleFactor;
 %     target_sz = round(target_sz);
 %     location = [l_x - floor(target_sz(1)/2), l_y - floor(target_sz(2)/2), target_sz(1), target_sz(2)];
-    location = [l_x - target_sz(1)/2, l_y - target_sz(2)/2, target_sz(1), target_sz(2)];
+    if move
+        location = [l_x - target_sz(1)/2, l_y - target_sz(2)/2, target_sz(1), target_sz(2)];
+    end
     t = t + toc;
-    fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
+%     fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
+   fprintf('\n');
     %% show results
       if im2_id == im1_id
        figure('Number','off', 'Name','Target Heat Maps');
@@ -191,7 +233,7 @@ for im2_id = im1_id:fnum
       end   
     
     %% Update lnet and gnet
-    if    recovered_scale ~= (scale_param.number_of_scales_test+1)/2 %|| im2_id <= 3%mod(im2_id, 1) == 0
+    if    recovered_scale ~= (scale_param.number_of_scales_test+1)/2 
 %         l_off = location_last(1:2)-location(1:2);
 %         map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
         
@@ -199,50 +241,32 @@ for im2_id = im1_id:fnum
         roi2 = impreprocess(roi2);
         feature_input.set_data(single(roi2));
         fsolver.net.forward_prefilled();
-        lfea2 = feature_blob4.get_data();
-        lfea2 = bsxfun(@times, lfea2, cos_win);
-        map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l1_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
+        lfea_s = feature_blob4.get_data();
+        lfea_s = bsxfun(@times, lfea_s, cos_win);
      
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(2), fea_sz(1)]);
-        lsolver.net.set_net_phase('train');
         gsolver.net.set_net_phase('train');
         gsolver.net.empty_net_param_diff();
-        lsolver.net.empty_net_param_diff();
-%         gsolver.net.set_input_dim([0, 2, fea_sz(3), fea_sz(2), fea_sz(1)]);
-        lsolver.net.set_input_dim([0, 2, fea_sz(3), fea_sz(2), fea_sz(1)]);
         
-        fea2_train_l{1}(:,:,:,1) = lfea1;
-        fea2_train_l{1}(:,:,:,2) = lfea2;
-        
-        l_pre_map = lsolver.net.forward(fea2_train_l);
-        
-        
-        scale_param.train_sample = get_scale_sample(lfea2, scale_param.scaleFactors_train, scale_param.scale_window_train);
+        scale_param.train_sample = get_scale_sample(lfea_s, scale_param.scaleFactors_train, scale_param.scale_window_train);
         scale_score = gsolver.net.forward({scale_param.train_sample});
         scale_score = scale_score{1};
         diff_g = (1*(scale_score-scale_param.y) - 0*min(scale_score((scale_param.number_of_scales_train+1)/2) - scale_score - 0.5, 0) .* diff_mask)/length(scale_param.number_of_scales_train);
         diff_g = {single(diff_g)};
 
-
-
-        diff_l{1}(:,:,:,1) = 0.5*(l_pre_map{1}(:,:,:,1)-permute(single(map1), [2,1,3]));
-        diff_l{1}(:,:,:,2) = 0.5*(l_pre_map{1}(:,:,:,2)-permute(single(map2), [2,1,3]));
-
-        lsolver.net.backward(diff_l);
         gsolver.net.backward(diff_g);
-        lsolver.apply_update();
         gsolver.apply_update();
-%         gsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
-        lsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
-    elseif rand(1)>1
+    end
+    if update
 %         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
 %         roi2 = impreprocess(roi2);
 %         feature_input.set_data(single(roi2));
 %         fsolver.net.forward_prefilled();
 %         lfea2 = feature_blob4.get_data();
 %         lfea2 = bsxfun(@times, lfea2, cos_win);
-        map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l1_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
+        l_off = location_last(1:2)-location(1:2);
+        map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
         
         lsolver.net.set_net_phase('train');
         lsolver.net.empty_net_param_diff();
@@ -262,7 +286,7 @@ for im2_id = im1_id:fnum
     end
 
     
-    positions(im2_id, :) = location;
+%     positions(im2_id, :) = location;
     
     
     %% Drwa resutls
@@ -280,19 +304,45 @@ for im2_id = im1_id:fnum
     saveas(im_handle, sprintf([sample_res '%04d.png'], im2_id));
     
     drawnow
-%       location = GT(im2_id, :);
     
+    %% reinforcement learning
+    
+    if im2_id > 1
+        samp_id = length(reward)-1;
+        for train_iter = 1:5
+            Qsolver.net.empty_net_param_diff();
+            r = single(reward(samp_id));
+            Q_tp1_all = Qsolver.net.forward({state(:, :, :, samp_id+1)});
+            Q_tp1 = max(Q_tp1_all{1});
+            y = r + forget_rate * Q_tp1;
+            Q_t_all = Qsolver.net.forward({state(:,:,:,samp_id)});
+            Q_t = Q_t_all{1};
+            diff_Q = single(zeros(4, 1));
+            diff_Q(action(samp_id)) = Q_t(action(samp_id)) - y;
+            Qsolver.net.backward({diff_Q});
+            Qsolver.apply_update();
+            samp_id = randi(im2_id-1);
+        end
+    end
+    if reward_t < -2
+        Qsolver.net.save(Qnet_model_file);
+        track_success = false;
+        return;
+    end
     
 end
-results{1}.type = 'rect';
-results{1}.res = positions;
-results{1}.startFrame = 1;
-results{1}.annoBegin = 1;
-resutls{1}.len = fnum;
+track_success = true;
+Qsolver.net.save(Qnet_model_file);
 
-
-save([track_res  lower(set_name) '_fct_scale_base1.mat'], 'results');
-fprintf('Speed: %d fps\n', fnum/t);
+% results{1}.type = 'rect';
+% results{1}.res = positions;
+% results{1}.startFrame = 1;
+% results{1}.annoBegin = 1;
+% resutls{1}.len = fnum;
+% 
+% 
+% save([track_res  lower(set_name) '_fct_scale_base1.mat'], 'results');
+% fprintf('Speed: %d fps\n', fnum/t);
 end
 
 function [roi, roi_pos, preim, pad] = ext_roi(im, GT, l_off, roi_size, r_w_scale)

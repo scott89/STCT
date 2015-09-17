@@ -1,0 +1,146 @@
+name: "Qnet"
+force_backward: true
+input: "data"
+input_dim: 1
+input_dim: 1
+input_dim: 46 #48
+input_dim: 46 #48
+
+
+#layers { 
+#  bottom: "data"
+#  top: "drop_data"
+#  name: "drop_data"
+#  type: DROPOUT
+#  dropout_param {
+#    dropout_ratio: 0.6
+#  }
+#}
+
+layers {
+  bottom: "data"
+  top: "conv1"
+  name: "conv1"
+  type: CONVOLUTION
+  blobs_lr: 1 #100 #15
+  blobs_lr: 2 #200 #30
+  weight_decay: 1#2
+  weight_decay: 0
+  convolution_param {
+    num_output: 16
+    pad: 0
+    kernel_size: 9
+    weight_filler {
+      type: "gaussian"
+      std: 1e-7 #1e-7
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.1
+    }
+  }
+}
+layers{ 
+  bottom: "conv1"
+  top: "conv1"
+  name: "relu1"
+  type: RELU
+}
+
+layers {
+  bottom: "conv1"
+  top: "pool1"
+  name: "pool1"
+  type: POOLING
+  pooling_param {
+    pool: MAX
+    kernel_size: 2
+    stride: 2
+  }
+}
+
+layers {
+  bottom: "pool1"
+  top: "conv2"
+  name: "conv2"
+  type: CONVOLUTION
+  blobs_lr:1 # 30# 15
+  blobs_lr:2 # 40# 30
+  weight_decay: 1#2 #1
+  weight_decay: 0 #0
+  convolution_param {
+    num_output: 32
+    pad: 0
+    kernel_size: 5
+    weight_filler {
+      type: "gaussian"
+      std: 1e-7
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layers{ 
+  bottom: "conv2"
+  top: "conv2"
+  name: "relu2"
+  type: RELU
+}
+
+layers {
+  bottom: "conv2"
+  top: "pool2"
+  name: "pool2"
+  type: POOLING
+  pooling_param {
+    pool: MAX
+    kernel_size: 3
+    stride: 3
+  }
+}
+
+layers {
+  bottom: "pool2"
+  top: "fc3"
+  name: "fc3"
+  type: INNER_PRODUCT
+  blobs_lr:1
+  blobs_lr:2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 256
+    weight_filler {
+      type: "gaussian"
+      std: 1e-7
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+
+layers {
+  bottom: "fc3"
+  top: "fc4"
+  name: "f4"
+  type: INNER_PRODUCT
+  blobs_lr:1
+  blobs_lr:2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 4 # 0: still & no update, 1: move & no update, 2: still & update, 3: move & update
+    weight_filler {
+      type: "gaussian"
+      std: 1e-7
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}

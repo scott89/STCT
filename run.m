@@ -1,13 +1,19 @@
 data_path = '~/Downloads/PF_CNN_SVM/data/';
 dataset = dir(data_path);
 % 
-for i=1:length(dataset)
+for k = 2:3
+for i=34:length(dataset)
     if ~isdir([data_path dataset(i).name]) || strcmp(dataset(i).name, '.') || strcmp(dataset(i).name, '..') || strcmp(dataset(i).name, 'AE_train_Deer')
         continue;
     end
-    cnn2_pf_tracker(dataset(i).name, 1, 512);
+    track_success = false;
+    iter_num = 0;
+    while ~track_success && iter_num <= 20
+        track_success = cnn2_pf_tracker(dataset(i).name, 1, 512);
+        iter_num = iter_num + 1;
+    end
 end
-
+end
 % for i=31:length(dataset)
 %     if ~isdir([data_path dataset(i).name]) || strcmp(dataset(i).name, '.') || strcmp(dataset(i).name, '..') || strcmp(dataset(i).name, 'AE_train_Deer')
 %         continue;
