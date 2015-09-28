@@ -1,25 +1,25 @@
 data_path = '~/Downloads/PF_CNN_SVM/data/';
 dataset = dir(data_path);
 % 
-epsilon = 0.96;
-epsilon = 0.3911*0.96;
-i = 28;
-for k = 24:300
-% for i= 28:length(dataset)
-    if ~isdir([data_path dataset(i).name]) || strcmp(dataset(i).name, '.') || strcmp(dataset(i).name, '..') || strcmp(dataset(i).name, 'AE_train_Deer')
-        continue;
+epsilon = 0.5105;
+epsilon = 0.01;
+iter_num = 487375;
+caffe.reset_all;
+Qtfsolver = init_Qtfsolver;
+for k = 1:300
+    for i= 34:length(dataset)
+        if ~isdir([data_path dataset(i).name]) || strcmp(dataset(i).name, '.') || strcmp(dataset(i).name, '..') || strcmp(dataset(i).name, 'AE_train_Deer')
+            continue;
+        end
+        track_success = false;
+        [track_success, iter_num, epsilon]= cnn2_pf_tracker(dataset(i).name, 1, 512, epsilon, iter_num, Qtfsolver);
+        if epsilon > 0.1
+            epsilon = epsilon - 1e-6;
+        end
     end
-    track_success = false;
-    iter_num = 0;
-    fail_t = 0;
-    
-    while iter_num <= 3
-        [track_success fail_t]= cnn2_pf_tracker(dataset(i).name, 1, 512, fail_t, epsilon, k, iter_num);
-        iter_num = iter_num + 1;
-    end
-    epsilon = epsilon * 0.96;
-% end
 end
+
+caffe.reset_all;
 % for i=31:length(dataset)
 %     if ~isdir([data_path dataset(i).name]) || strcmp(dataset(i).name, '.') || strcmp(dataset(i).name, '..') || strcmp(dataset(i).name, 'AE_train_Deer')
 %         continue;
