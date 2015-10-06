@@ -1,4 +1,4 @@
-function Qtfsolver = init_Qtfsolver
+function Qtfsolver = init_Qtfsolver(iter_num)
 
 caffe.set_mode_gpu();
 gpu_id = 0;  % we will use the first gpu in this demo
@@ -19,8 +19,8 @@ Qsolver = caffe.Solver(Qnet_solver_def_file);
 % end
 %% Qsolver for generating target
 Qtsolver = caffe.Solver(Qnet_solver_def_file);
-Qsolver.net.copy_from('Qnet_model/487000.caffemodel');
-Qtsolver.net.copy_from('Qnet_model/487000.caffemodel');
+Qsolver.net.copy_from(['Qnet_model/' num2str(iter_num) '.caffemodel']);
+Qtsolver.net.copy_from(['Qnet_model/' num2str(iter_num) '.caffemodel']);
 
 Qtfsolver.fsolver = fsolver;
 Qtfsolver.Qsolver = Qsolver;

@@ -1,4 +1,4 @@
-function  [track_success, iter_num, epsilon] = cnn2_pf_tracker(set_name, im1_id, ch_num, epsilon, iter_num, Qtfsolver)
+function  [track_success, iter_num, epsilon, data_list] = cnn2_pf_tracker(set_name, im1_id, ch_num, epsilon, iter_num, Qtfsolver, data_list)
 % set_name = 'Shaking'; im1_id = 1; ch_num = 512;
 cleanupObj = onCleanup(@cleanupFun);
 % rng('default');
@@ -117,7 +117,7 @@ for im2_id = im1_id:fnum
     gsolver.net.set_net_phase('test');
     location_last = location;
     tic
-    fprintf('Processing Img: %d/%d ', im2_id, fnum);
+    fprintf('Processing Img: %d/%d\t', im2_id, fnum);
     im2_name = sprintf([data_path 'img/%04d.jpg'], im2_id);
     im2 = double(imread(im2_name));
     if size(im2,3)~=3
@@ -157,6 +157,11 @@ for im2_id = im1_id:fnum
     if im2_id> im1_id
         iter_num = iter_num + 1;
         save(sprintf('%s%d.mat',train_data_path, iter_num), 'state_t', 'action_id_t', 'reward_t', 'state_tp1');
+        if length(data_list{action_id_t}) < buffer_size
+            data_list{action_id_t} = [data_list{action_id_t} iter_num];
+        else
+            data_list{action_id_t} = [data_list{action_id_t}(2:buffer_size) iter_num];
+        end
     end
     
     action_t = Qsolver.net.forward({l_pre_map});
@@ -171,7 +176,7 @@ for im2_id = im1_id:fnum
         %         else
         %             action_t(2) = 1;
         %         end
-        fprintf('Random \t')
+        fprintf('Random')
     end
     [~, action_id_t] = max(action_t);
 
@@ -179,18 +184,19 @@ for im2_id = im1_id:fnum
         case 1
             update = false;
             move = false;
+            fprintf('\t\t\t');
         case 2
             update = false;
             move = true;
-            fprintf('move \t');
+            fprintf('\tmove\t\t');
         case 3
             update = true;
             move = false;
-            fprintf('update \t');
+            fprintf('\tupdate\t\t');
         case 4
             update = true;
             move = true;
-            fprintf('move and update \t');
+            fprintf('\tmove and update\t');
     end
     
     %% local scale estimation
@@ -231,7 +237,6 @@ for im2_id = im1_id:fnum
     end
     t = t + toc;
     %     fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
-    fprintf('\n');
     %% show results
     if im2_id == im1_id
         figure('Number','off', 'Name','Target Heat Maps');
@@ -271,7 +276,7 @@ for im2_id = im1_id:fnum
         gsolver.apply_update();
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
     end
-    if update
+    if update %&& rand(1)>0.5
         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
         roi2 = impreprocess(roi2);
         feature_input.set_data(single(roi2));
@@ -321,46 +326,50 @@ for im2_id = im1_id:fnum
     
     %% reinforcement learning
     
-    if iter_num >= 1
-         
-        sample_id = randi(iter_num, batch_size, 1);
-        
-        Qtsolver.net.set_input_dim([0, batch_size, 1, fea_sz(2), fea_sz(1)]);
-        Qsolver.net.set_input_dim([0, batch_size, 1, fea_sz(2), fea_sz(1)]);
-        Qsolver.net.empty_net_param_diff();
-        %% load sample experients
-        for i = 1:batch_size
-           experience(i) = load([train_data_path num2str(sample_id(i)) '.mat']); 
-        end
-        r = single([experience.reward_t]);
-        a = [experience.action_id_t];
-        
-        states = [experience.state_t];
-        states = reshape(states, [fea_sz(1), fea_sz(2),1,batch_size]);
-        state_tp1s = [experience.state_tp1];
-        state_tp1s = reshape(state_tp1s, [fea_sz(1), fea_sz(2),1,batch_size]);
-        
-        Q_tp1_all = Qtsolver.net.forward({single(state_tp1s)});
-        
-        Q_tp1 = max(Q_tp1_all{1});
-        y = r + forget_rate * Q_tp1;
-        
-        
-        Q_t_all = Qsolver.net.forward({single(states)});
-        Q_t = Q_t_all{1};
-        
-        
-        diff_Q = single(zeros(4, batch_size));
-        action_ind = sub2ind([4, batch_size], a, 1:batch_size);
-        diff_Q(action_ind) = 1/batch_size * (Q_t(action_ind) - y);
-        Qsolver.net.backward({diff_Q});
-        Qsolver.apply_update();
-        
-        
-        Qsolver.net.set_input_dim([0, 1, 1, fea_sz(2), fea_sz(1)]);
- 
-    end
-    
+%     if iter_num >= 1
+%         sample_id = [];
+%         for list_id = 1:length(data_list)
+%             sample_id = [sample_id data_list{list_id}(randi(buffer_size, batch_size/4, 1))];
+%         end
+% %         sample_id = randi(iter_num, batch_size, 1);
+%         
+%         Qtsolver.net.set_input_dim([0, batch_size, 1, fea_sz(2), fea_sz(1)]);
+%         Qsolver.net.set_input_dim([0, batch_size, 1, fea_sz(2), fea_sz(1)]);
+%         Qsolver.net.empty_net_param_diff();
+%         %% load sample experients
+%         for i = 1:batch_size
+%            experience(i) = load([train_data_path num2str(sample_id(i)) '.mat']); 
+%         end
+%         r = single([experience.reward_t]);
+%         a = [experience.action_id_t];
+%         
+%         states = [experience.state_t];
+%         states = reshape(states, [fea_sz(1), fea_sz(2),1,batch_size]);
+%         state_tp1s = [experience.state_tp1];
+%         state_tp1s = reshape(state_tp1s, [fea_sz(1), fea_sz(2),1,batch_size]);
+%         
+%         Q_tp1_all = Qtsolver.net.forward({single(state_tp1s)});
+%         
+%         Q_tp1 = max(Q_tp1_all{1});
+%         y = r + forget_rate * Q_tp1;
+%         
+%         
+%         Q_t_all = Qsolver.net.forward({single(states)});
+%         Q_t = Q_t_all{1};
+%         
+%         
+%         diff_Q = single(zeros(4, batch_size));
+%         action_ind = sub2ind([4, batch_size], a, 1:batch_size);
+%         diff_Q(action_ind) = 1/batch_size * (Q_t(action_ind) - y);
+%         Qsolver.net.backward({diff_Q});
+%         Qsolver.apply_update();
+%         
+%         
+%         Qsolver.net.set_input_dim([0, 1, 1, fea_sz(2), fea_sz(1)]);
+%         fprintf('LR Loss: %f',sum(abs(diff_Q(:))))
+%  
+%     end
+    fprintf('\n');
     if epsilon > 0.1
         epsilon = epsilon - 1e-6;
     end

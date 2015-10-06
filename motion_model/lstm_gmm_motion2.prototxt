@@ -1,0 +1,365 @@
+name: "lstm_language_model"
+layer {
+  name: "data"
+  type: "HDF5Data"
+  top: "data"
+  top: "label"
+  top: "cont"
+  include { phase: TRAIN }
+  hdf5_data_param {
+    source: "hdf5_train_list.txt"
+    batch_size: 20
+  }
+}
+
+layer {
+  name: "data"
+  type: "HDF5Data"
+  top: "data"
+  top: "label"
+  top: "cont"
+  include { phase: TEST }
+  hdf5_data_param {
+    source: "hdf5_test_list.txt"
+    batch_size: 20
+  }
+}
+
+layer {
+  name: "lstm1"
+  type: "LSTM"
+  bottom: "data"
+  bottom: "cont"
+  top: "lstm1"
+  recurrent_param {
+    num_output:  1000
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+layer {
+  name: "drop1"
+  type: "Dropout"
+  bottom: "lstm1"
+  top: "lstm1-drop"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
+
+layer {
+  name: "lstm2"
+  type: "LSTM"
+  bottom: "lstm1-drop"
+  bottom: "cont"
+  top: "lstm2"
+  recurrent_param {
+    num_output: 512
+    weight_filler {
+      type: "uniform"
+      min: -0.08
+      max: 0.08
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "drop2"
+  type: "Dropout"
+  bottom: "lstm2"
+  top: "lstm2"
+  dropout_param {
+    dropout_ratio: 0.5
+  }
+}
+### alpha ###########
+layer {
+  name: "alpha_h1"
+  type: "InnerProduct"
+  bottom: "lstm1"
+  top: "alpha_h1"
+  param {
+    lr_mult: 0.1
+  }
+  param {
+    lr_mult: 0.2
+  }
+  inner_product_param {
+    num_output: 20
+    axis: 2
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "alpha_h2"
+  type: "InnerProduct"
+  bottom: "lstm2"
+  top: "alpha_h2"
+  param {
+    lr_mult: 0.1
+  }
+  param {
+    lr_mult: 0.2
+  }
+  inner_product_param {
+    num_output: 20
+    axis: 2
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "alpha_h"
+  type: "Eltwise"
+  bottom: "alpha_h1"
+  bottom: "alpha_h2"
+  top: "alpha_h"
+  eltwise_param {
+    operation: SUM
+    coeff: 1
+    coeff: 1
+  }
+}
+
+layer {
+  name: "alpha"
+  type: "Softmax"
+  bottom: "alpha_h"
+  top: "alpha"
+  softmax_param {
+    axis: 2
+  }
+}
+
+### mean ###########
+layer {
+  name: "mean1"
+  type: "InnerProduct"
+  bottom: "lstm1"
+  top: "mean1"
+  param {
+    lr_mult: 0.1
+  }
+  param {
+    lr_mult: 0.2
+  }
+  inner_product_param {
+    num_output: 40
+    axis: 2
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "mean2"
+  type: "InnerProduct"
+  bottom: "lstm2"
+  top: "mean2"
+  param {
+    lr_mult: 0.1
+  }
+  param {
+    lr_mult: 0.2
+  }
+  inner_product_param {
+    num_output: 40
+    axis: 2
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "mean"
+  type: "Eltwise"
+  bottom: "mean1"
+  bottom: "mean2"
+  top: "mean"
+  eltwise_param {
+    operation: SUM
+    coeff: 1
+    coeff: 1
+  }
+}
+### variance ###########
+layer {
+  name: "variance_h1"
+  type: "InnerProduct"
+  bottom: "lstm1"
+  top: "variance_h1"
+  param {
+    lr_mult: 0.1 #0.1
+  }
+  param {
+    lr_mult: 0.2 #0.2
+  }
+  inner_product_param {
+    num_output: 40
+    axis: 2
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.5
+    }
+  }
+}
+layer {
+  name: "variance_h2"
+  type: "InnerProduct"
+  bottom: "lstm2"
+  top: "variance_h2"
+  param {
+    lr_mult: 0.1 #0.1
+  }
+  param {
+    lr_mult: 0.2 #0.2
+  }
+  inner_product_param {
+    num_output: 40
+    axis: 2
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.5
+    }
+  }
+}
+layer {
+  name: "variance_h"
+  type: "Eltwise"
+  bottom: "variance_h1"
+  bottom: "variance_h2"
+  top: "variance_h"
+  eltwise_param {
+    operation: SUM
+    coeff: 1
+    coeff: 1
+  }
+}
+
+layer {
+  name: "variance"
+  type: "Exp"
+  bottom: "variance_h"
+  top: "variance"
+  exp_param {
+    scale: 1
+  }
+}
+
+### correlation ###########
+layer {
+  name: "correlation_h"
+  type: "InnerProduct"
+  bottom: "lstm2"
+  top: "correlation_h"
+  param {
+    lr_mult: 0 #0.1
+  }
+  param {
+    lr_mult: 0 #0.2
+  }
+  inner_product_param {
+    num_output: 20
+    axis: 2
+    weight_filler {
+      type: "constant" #"xavier"
+      value: 0
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+
+#layer {
+#  name: "correlation"
+#  type: "TanH"
+#  bottom: "correlation_h"
+#  top: "correlation";
+#}
+
+layer {
+  name: "loss"
+  type: "GMMLoss"
+  bottom: "alpha"
+  bottom: "mean"
+  bottom: "variance"
+  bottom: "correlation_h"
+  bottom: "label"
+  gmm_param {
+    num_mixtures: 20
+    base: 0.5
+  }
+  include { phase: TRAIN }
+}
+
+layer {
+  name: "loss"
+  type: "GMMLoss"
+  bottom: "alpha"
+  bottom: "mean"
+  bottom: "variance"
+  bottom: "correlation_h"
+  bottom: "label"
+  top: "loss"
+  gmm_param {
+    num_mixtures: 20
+    base: 0.5
+  }
+  include { phase: TEST }
+}
+
+
+#layer {
+#  name: "loss"
+#  type: "EuclideanLoss"
+#  bottom: "pred"
+#  bottom: "label"
+#  include { phase: TRAIN }
+#}
+#
+#layer {
+#  name: "loss"
+#  type: "EuclideanLoss"
+#  bottom: "pred"
+#  bottom: "label"
+#  top: "test_loss"
+#  include { phase: TEST }
+#}

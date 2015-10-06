@@ -62,7 +62,7 @@ snapshot = 1000;
 Qtupdate_interval = 1000;
 forget_rate = 0.9;
 batch_size = 32;
-
+buffer_size = 10000;
 
 %% 
 roi_size = 361;%368; %380;
