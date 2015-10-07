@@ -17,10 +17,10 @@ fprintf('epsilon: %f\n', epsilon);
 
 data_path = ['~/Downloads/PF_CNN_SVM/data/' set_name '/'];
 GT = load([data_path 'groundtruth_rect.txt']);
-dia = (GT(1, 3)^2+GT(1, 4)^2)^0.5;
+dia = (GT(im1_id, 3)^2+GT(im1_id, 4)^2)^0.5;
 
 % scale = gt(1, 3)/ gt (1, 4);
-scale = [dia/GT(1, 3), dia/GT(1, 4)];
+scale = [dia/GT(im1_id, 3), dia/GT(im1_id, 4)];
 l1_off = [0,0];
 l2_off = [0,0];
 s1 = pf_param.roi_scale*[scale(1),scale(2)];

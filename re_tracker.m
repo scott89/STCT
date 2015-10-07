@@ -1,108 +1,59 @@
-function  [track_success, iter_num, epsilon, data_list, data_empty, restart_frame, lfea1, map1] = cnn2_pf_tracker(set_name, im1_id, ch_num, epsilon, iter_num, Qtfsolver, data_list, data_empty)
+function  [track_success, iter_num, epsilon, data_list, data_empty, restart_frame, lfea1, map1] = re(set_name, im1_id, ch_num, epsilon, iter_num, Qtfsolver, data_list, data_empty, lfea1, map1)
 % set_name = 'Shaking'; im1_id = 1; ch_num = 512;
 cleanupObj = onCleanup(@cleanupFun);
 % rng('default');
 % rng(0);
 % rand('state', 0);
 set_tracker_param;
-
-
+fea_sz = size(lfea1);
+cos_win = single(hann(fea_sz(1)) * hann(fea_sz(2))');
+% cos_win = single(ones(fea_sz(1), fea_sz(1)));
 %% read images
-im1_name = sprintf([data_path 'img/%04d.jpg'], im1_id);
-im1 = double(imread(im1_name));
-if size(im1,3)~=3
-    im1(:,:,2) = im1(:,:,1);
-    im1(:,:,3) = im1(:,:,1);
-end
-
-%% extract roi and display
-roi1 = ext_roi(im1, location, l1_off,  roi_size, s1);
-%% save roi images
-%% ------------------------------
-figure(1)
-imshow(mat2gray(roi1));
+% im1_name = sprintf([data_path 'img/%04d.jpg'], im1_id);
+% im1 = double(imread(im1_name));
+% if size(im1,3)~=3
+%     im1(:,:,2) = im1(:,:,1);
+%     im1(:,:,3) = im1(:,:,1);
+% end
+% 
+% %% extract roi and display
+% roi1 = ext_roi(im1, location, l1_off,  roi_size, s1);
+% %% save roi images
+% %% ------------------------------
+% figure(1)
+% imshow(mat2gray(roi1));
 
 
 %% preprocess roi
-roi1 = impreprocess(roi1);
+% roi1 = impreprocess(roi1);
 fsolver.net.set_net_phase('test');
 feature_input = fsolver.net.blobs('data');
 feature_blob4 = fsolver.net.blobs('conv4_3');
 feature_blob5 = fsolver.net.blobs('conv5_3');
 fsolver.net.set_input_dim([0, 1, 3, roi_size, roi_size]);
-feature_input.set_data(single(roi1));
-fsolver.net.forward_prefilled();
-% fea = fsolver.net.forward({roi1});
+% feature_input.set_data(single(roi1));
+% fsolver.net.forward_prefilled();
 
-% fea1 = caffe('forward', {single(roi1)});
-lfea1 = feature_blob4.get_data();
-fea_sz = size(lfea1);
-
-gfea1 = imresize(feature_blob5.get_data(), fea_sz(1:2));
-
-cos_win = single(hann(fea_sz(1)) * hann(fea_sz(2))');
-% cos_win = single(ones(fea_sz(1), fea_sz(1)));
-lfea1 = bsxfun(@times, lfea1, cos_win);
-gfea1 = bsxfun(@times, gfea1, cos_win);
 %% ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-max_iter = 80;
-map1 =  GetMap(size(im1), fea_sz, roi_size, location, l1_off, s1, pf_param.map_sigma_factor, 'trans_gaussian');
+
 %% Init Scale Estimator
 scale_param = init_scale_estimator;
-scale_param.train_sample = get_scale_sample(lfea1, scale_param.scaleFactors_train, scale_param.scale_window_train);
+diff_mask = ones(1, scale_param.number_of_scales_train);
+diff_mask((scale_param.number_of_scales_train+1)/2) = 0;
 
 %% train
-
+lsolver.restore(['snapshot/lnet' num2str(im1_id) '.solverstate']);
+gsolver.restore(['snapshot/gnet' num2str(im1_id) '.solverstate']);
 lsolver.net.set_net_phase('train');
 gsolver.net.set_net_phase('train');
 Qsolver.net.set_net_phase('train');
-lnet_input = lsolver.net.blobs('data');
-gnet_input = gsolver.net.blobs('data');
-lnet_output = lsolver.net.blobs('conv5_f2');
-gnet_output = gsolver.net.blobs('conv5_f2');
-
-%% Iterations
-
-figure(11);stem(scale_param.y);
-diff_mask = ones(1, scale_param.number_of_scales_train);
-diff_mask((scale_param.number_of_scales_train+1)/2) = 0;
-gsolver.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(2), fea_sz(1)]);
-for i=1:max_iter
-    gsolver.net.empty_net_param_diff();
-    lsolver.net.empty_net_param_diff();
-
-    l_pre_map = lsolver.net.forward({lfea1});
-    scale_score = gsolver.net.forward({scale_param.train_sample});
-    l_pre_map = l_pre_map{1};
-    scale_score = scale_score{1};
-    figure(1011); subplot(1,2,1); imagesc(permute(l_pre_map,[2,1,3]));
-    figure(1011); subplot(1,2,2); stem(scale_score)
-     
-    l_diff = l_pre_map-permute(single(map1), [2,1,3]);
-%     scale_score = scale_score - max(scale_score);
-%     p = exp(scale_score) / sum(exp(scale_score));
-%     figure(1011); subplot(1,2,2); stem(p)
-    
-%     g_diff = p;
-%     g_diff(17) = 1 - g_diff(17);
-    g_diff = (1*(scale_score-scale_param.y) - 0*min(scale_score((scale_param.number_of_scales_train+1)/2) - scale_score - 0.5, 0) .* diff_mask)/length(scale_param.number_of_scales_train);
-
-%     g_diff = (0.0001*(scale_score-scale_param.y) + scale_score(17)-1 - 2*min(scale_score(17) - scale_score - 0.5, 0) .* diff_mask)/length(scale_param.number_of_scales);
-   
-    lsolver.net.backward({single(l_diff)});
-    gsolver.net.backward({single(g_diff)});
-    lsolver.apply_update();
-    gsolver.apply_update();
-    fprintf('Iteration %03d/%03d, Local Loss %f, Global Loss %f\n', i, max_iter, sum(abs(l_diff(:))), sum(abs(g_diff(:))));
-end
-%% ================================================================
 
 
 t=0;
 fnum = size(GT,1);
 positions = zeros(fnum, 4);
-close all
+
 gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
 state = [];
 reward = [];
@@ -111,12 +62,13 @@ state_tp1 = [];
 state_t = [];
 reward_tp1 = 1;
 reward_t = 0;
+fail_frame = 0;
 for im2_id = im1_id:fnum
     if im2_id == 285
         1;
     end
         %% snapshot lnet and gnet
-    if mod(im2_id, 11) == 0 || im2_id == 1
+    if mod(im2_id, 11) == 0 && im2_id ~= im1_id
         lsolver.snapshot(['snapshot/lnet' num2str(im2_id) '.solverstate'], ['snapshot/lnet' num2str(im2_id) '.caffemodel']);
         lsolver.net.save(['snapshot/lnet' num2str(im2_id) '.caffemodel']);
         gsolver.snapshot(['snapshot/gnet' num2str(im2_id) '.solverstate'], ['snapshot/gnet' num2str(im2_id) '.caffemodel']);
@@ -152,8 +104,7 @@ for im2_id = im1_id:fnum
     l_pre_map = lsolver.net.forward({lfea2});
     l_pre_map = (permute(l_pre_map{1}, [2,1,3]) - min(l_pre_map{1}(:)))/(max(l_pre_map{1}(:))-min(l_pre_map{1}(:))+eps);
     %     l_pre_map = permute(l_pre_map{1}, [2,1,3]);
-    
-    
+ 
     
     
     %% compute local confidence
@@ -254,7 +205,6 @@ for im2_id = im1_id:fnum
     reward_t = reward_tp1;
     reward_tp1 = ComputeOverlap(location, GT(im2_id, :));
     reward_tp1 = double(reward_tp1>0.5);
-    
     reward_t = (reward_t + reward_tp1) / 2;
     state_t = state_tp1;
     state_tp1 = l_pre_map;
@@ -355,7 +305,7 @@ for im2_id = im1_id:fnum
     
     if ~data_empty
         sample_id = [];
-        for a_id = 1:size(data_list, 1)
+       for a_id = 1:size(data_list, 1)
             for l_id = 1:size(data_list, 2)
                 sample_id = [sample_id data_list{a_id, l_id}(randi(length(data_list{a_id, l_id}), 1, batch_size/8))];
             end
@@ -420,7 +370,10 @@ for im2_id = im1_id:fnum
     end
     
 
-    if im2_id > im1_id && reward_t <= 0.2
+    if im2_id > im1_id && reward_t <= 0.3
+        fail_frame = fail_frame + 1;
+    end
+    if fail_frame > 10
         track_success = false;
         restart_frame = 10*(floor(im2_id/10)-1) + 1;
         if restart_frame < 1
@@ -428,15 +381,6 @@ for im2_id = im1_id:fnum
         end
         return;
     end
-%     if im2_id == 5
-%          track_success = false;
-%         restart_frame = 10*(floor(im2_id/10)-1) + 1;
-%         if restart_frame < 1
-%             restart_frame = 1;
-%         end
-%         return;
-%     end
-    
 
 end
 track_success = true;
