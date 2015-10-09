@@ -59,11 +59,11 @@ Qnet_model_path = 'Qnet_model/';
 train_data_path = 'data/';
 %%
 snapshot = 1000;
-Qtupdate_interval = 1000;
+Qtupdate_interval = 10000;
 forget_rate = 0.9;
 batch_size = 32;
 buffer_size = 10000;
-
+rl_channel_num = 3;
 %% 
 roi_size = 361;%368; %380;
 

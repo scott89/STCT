@@ -2,7 +2,7 @@ name: "Qnet"
 force_backward: true
 input: "data"
 input_dim: 1
-input_dim: 1
+input_dim: 3
 input_dim: 46 #48
 input_dim: 46 #48
 

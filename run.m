@@ -24,8 +24,15 @@ for k = 1:300
         end
         track_success = false;
         [track_success, iter_num, epsilon, data_list, data_empty, restart_frame, lfea1, map1]= cnn2_pf_tracker(dataset(i).name, 1, 512, epsilon, iter_num, Qtfsolver, data_list, data_empty);
+        fail_num = 0;
         while ~track_success
             [track_success, iter_num, epsilon, data_list, data_empty, restart_frame, lfea1, map1]= re_tracker(dataset(i).name, restart_frame, 512, epsilon, iter_num, Qtfsolver, data_list, data_empty, lfea1, map1);
+            fail_num = fail_num + 1;
+            if mod(fail_num, 10) && restart_frame > 1
+                restart_frame = restart_frame - 10;
+            elseif fail_num == 100
+                    break;  
+            end
         end
 
         if epsilon > 0.1

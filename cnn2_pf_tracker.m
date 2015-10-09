@@ -104,7 +104,7 @@ fnum = size(GT,1);
 positions = zeros(fnum, 4);
 close all
 gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
-state = [];
+state = nan(fea_sz(1), fea_sz(2), rl_channel_num+1);
 reward = [];
 action = [];
 state_tp1 = [];
@@ -116,7 +116,7 @@ for im2_id = im1_id:fnum
         1;
     end
         %% snapshot lnet and gnet
-    if mod(im2_id, 11) == 0 || im2_id == 1
+    if mod(im2_id, 10) == 1 || im2_id == 1
         lsolver.snapshot(['snapshot/lnet' num2str(im2_id) '.solverstate'], ['snapshot/lnet' num2str(im2_id) '.caffemodel']);
         lsolver.net.save(['snapshot/lnet' num2str(im2_id) '.caffemodel']);
         gsolver.snapshot(['snapshot/gnet' num2str(im2_id) '.solverstate'], ['snapshot/gnet' num2str(im2_id) '.caffemodel']);
@@ -152,7 +152,7 @@ for im2_id = im1_id:fnum
     l_pre_map = lsolver.net.forward({lfea2});
     l_pre_map = (permute(l_pre_map{1}, [2,1,3]) - min(l_pre_map{1}(:)))/(max(l_pre_map{1}(:))-min(l_pre_map{1}(:))+eps);
     %     l_pre_map = permute(l_pre_map{1}, [2,1,3]);
-    
+    state = cat(3, l_pre_map, state(:,:, 1:end-1));
     
     
     
@@ -163,10 +163,14 @@ for im2_id = im1_id:fnum
     l_im_map = l_im_map(pad+1:end-pad, pad+1:end-pad);
     [l_y, l_x] = find(l_im_map == max(l_im_map(:)), 1);
 
-    action_t = Qsolver.net.forward({l_pre_map});
-    action_t = action_t{1};
-    %     off_policy = rand(1) < epsilon;
-    off_policy =  rand(1) < epsilon;
+    
+    if im2_id >= im1_id + rl_channel_num - 1
+        action_t = Qsolver.net.forward({single(state(:,:,1:end-1))});
+        action_t = action_t{1};
+    else
+        off_policy = true;
+    end
+    
     if off_policy
         action_t = rand(4,1);
         %         action_t = zeros(4,1);
@@ -253,13 +257,15 @@ for im2_id = im1_id:fnum
     %%
     reward_t = reward_tp1;
     reward_tp1 = ComputeOverlap(location, GT(im2_id, :));
-    reward_tp1 = double(reward_tp1>0.5);
+%     reward_tp1 = double(reward_tp1>0.5);
     
-    reward_t = (reward_t + reward_tp1) / 2;
-    state_t = state_tp1;
-    state_tp1 = l_pre_map;
-    if im2_id> im1_id
+%     reward_t = (reward_t + reward_tp1) / 2;
+
+    if im2_id >= im1_id + rl_channel_num;
         iter_num = iter_num + 1;
+        state_t = state(:,:, 2:end);
+        state_tp1 = state(:,:, 1:end-1);
+        
         save(sprintf('%s%d.mat',train_data_path, iter_num), 'state_t', 'action_id_t', 'reward_t', 'state_tp1');
         label_id = double(reward_t>0.5) + 1;
         if length(data_list{action_id_t, label_id}) < buffer_size
@@ -354,51 +360,57 @@ for im2_id = im1_id:fnum
     end
     
     if ~data_empty
-        sample_id = [];
-        for a_id = 1:size(data_list, 1)
-            for l_id = 1:size(data_list, 2)
-                sample_id = [sample_id data_list{a_id, l_id}(randi(length(data_list{a_id, l_id}), 1, batch_size/8))];
+        average_loss = 0;
+        for iteration = 1:10
+            sample_id = [];
+            for a_id = 1:size(data_list, 1)
+                for l_id = 1:size(data_list, 2)
+                    sample_id = [sample_id data_list{a_id, l_id}(randi(length(data_list{a_id, l_id}), 1, batch_size/8))];
+                end
             end
+            %         sample_id = randi(iter_num, batch_size, 1);
+            
+            Qtsolver.net.set_input_dim([0, batch_size, rl_channel_num, fea_sz(2), fea_sz(1)]);
+            Qtsolver.net.set_net_phase('test');
+            Qsolver.net.set_input_dim([0, batch_size, rl_channel_num, fea_sz(2), fea_sz(1)]);
+            Qsolver.net.empty_net_param_diff();
+            
+            %% load sample experients
+            for i = 1:batch_size
+                experience(i) = load([train_data_path num2str(sample_id(i)) '.mat']);
+            end
+            r = single([experience.reward_t]);
+            a = [experience.action_id_t];
+            
+            train_states = [experience.state_t];
+            train_states = reshape(train_states, [fea_sz(1), fea_sz(2), batch_size, rl_channel_num]);
+            train_states = permute(train_states, [1,2,4,3]);
+            train_state_tp1s = [experience.state_tp1];
+            train_state_tp1s = reshape(train_state_tp1s, [fea_sz(1), fea_sz(2), batch_size, rl_channel_num]);
+            train_state_tp1s = permute(train_state_tp1s, [1,2,4,3]);
+            
+            Q_tp1_all = Qtsolver.net.forward({single(train_state_tp1s)});
+            
+            Q_tp1 = max(Q_tp1_all{1});
+            y = r + forget_rate * Q_tp1;
+            
+            
+            Q_t_all = Qsolver.net.forward({single(train_states)});
+            Q_t = Q_t_all{1};
+            
+            
+            diff_Q = single(zeros(4, batch_size));
+            action_ind = sub2ind([4, batch_size], a, 1:batch_size);
+            diff_Q(action_ind) = 1/batch_size * (Q_t(action_ind) - y);
+            Qsolver.net.backward({diff_Q});
+            Qsolver.apply_update();
+            
+            
+            Qsolver.net.set_input_dim([0, 1, rl_channel_num, fea_sz(2), fea_sz(1)]);
+            average_loss = average_loss + sum(abs(diff_Q(:)));
+            
         end
-%         sample_id = randi(iter_num, batch_size, 1);
-        
-        Qtsolver.net.set_input_dim([0, batch_size, 1, fea_sz(2), fea_sz(1)]);
-        Qtsolver.net.set_net_phase('test');
-        Qsolver.net.set_input_dim([0, batch_size, 1, fea_sz(2), fea_sz(1)]);
-        Qsolver.net.empty_net_param_diff();
-        
-        %% load sample experients
-        for i = 1:batch_size
-           experience(i) = load([train_data_path num2str(sample_id(i)) '.mat']); 
-        end
-        r = single([experience.reward_t]);
-        a = [experience.action_id_t];
-        
-        states = [experience.state_t];
-        states = reshape(states, [fea_sz(1), fea_sz(2),1,batch_size]);
-        state_tp1s = [experience.state_tp1];
-        state_tp1s = reshape(state_tp1s, [fea_sz(1), fea_sz(2),1,batch_size]);
-        
-        Q_tp1_all = Qtsolver.net.forward({single(state_tp1s)});
-        
-        Q_tp1 = max(Q_tp1_all{1});
-        y = r + forget_rate * Q_tp1;
-        
-        
-        Q_t_all = Qsolver.net.forward({single(states)});
-        Q_t = Q_t_all{1};
-        
-        
-        diff_Q = single(zeros(4, batch_size));
-        action_ind = sub2ind([4, batch_size], a, 1:batch_size);
-        diff_Q(action_ind) = 1/batch_size * (Q_t(action_ind) - y);
-        Qsolver.net.backward({diff_Q});
-        Qsolver.apply_update();
-        
-        
-        Qsolver.net.set_input_dim([0, 1, 1, fea_sz(2), fea_sz(1)]);
-        fprintf('LR Loss: %f',sum(abs(diff_Q(:))))
- 
+        fprintf('LR Loss: %f', average_loss / 10);
     end
     fprintf('\n');
     if epsilon > 0.1
@@ -440,7 +452,7 @@ for im2_id = im1_id:fnum
 
 end
 track_success = true;
-
+restart_frame = nan;
 % results{1}.type = 'rect';
 % results{1}.res = positions;
 % results{1}.startFrame = 1;
