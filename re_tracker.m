@@ -395,7 +395,7 @@ for im2_id = im1_id:fnum
     if im2_id > im1_id && reward_t < 0.2
         fail_frame = fail_frame + 1;
     end
-    if fail_frame > 4
+    if fail_frame > fail_frame_thr
         track_success = false;
         restart_frame = 10*(floor(im2_id/10)-1) + 1;
         if restart_frame < 1

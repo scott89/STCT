@@ -16,3 +16,4 @@ random_seed: 1701
 average_loss: 100
 clip_gradients: 10
 test_initialization: false
+snapshot_format: BINARYPROTO

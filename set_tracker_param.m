@@ -59,11 +59,15 @@ Qnet_model_path = 'Qnet_model/';
 train_data_path = 'data/';
 %%
 snapshot = 1000;
-Qtupdate_interval = 10000;
+Qtupdate_interval = 100000;
 forget_rate = 0.9;
 batch_size = 32;
-buffer_size = 10000;
+buffer_size = 20000;
 rl_channel_num = 3;
+fail_frame_thr = 4;
+if strcmp(set_name, 'Coke') || strcmp(set_name, 'Matrix') || strcmp(set_name, 'Soccer') || strcmp(set_name, 'Ironman')
+    fail_frame_thr = 9;
+end
 %% 
 roi_size = 361;%368; %380;
 

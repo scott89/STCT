@@ -1,27 +1,26 @@
 name: "lstm_language_model"
-layer {
-  name: "data"
-  type: "HDF5Data"
-  top: "data"
-  top: "label"
-  top: "cont"
-  include { phase: TRAIN }
-  hdf5_data_param {
-    source: "hdf5_train_list.txt"
-    batch_size: 20
-  }
-}
+input: "data"
+input_dim: 20
+input_dim: 10
+input_dim: 2
+input_dim: 1
+
+input: "cont0"
+input_dim: 20
+input_dim: 10
+input_dim: 1
+input_dim: 1
 
 layer {
-  name: "data"
-  type: "HDF5Data"
-  top: "data"
-  top: "label"
+  name: "cont"
+  type: "Reshape"
+  bottom: "cont0"
   top: "cont"
-  include { phase: TEST }
-  hdf5_data_param {
-    source: "hdf5_test_list.txt"
-    batch_size: 20
+  reshape_param {
+    shape {
+      dim: 20
+      dim: 10
+    }
   }
 }
 
@@ -222,36 +221,36 @@ layer {
 #  top: "correlation";
 #}
 
-layer {
-  name: "loss"
-  type: "GMMLoss"
-  bottom: "alpha"
-  bottom: "mean"
-  bottom: "variance"
-  bottom: "correlation_h"
-  bottom: "label"
-  gmm_param {
-    num_mixtures: 40
-    base: 0.5
-  }
-  include { phase: TRAIN }
-}
-
-layer {
-  name: "loss"
-  type: "GMMLoss"
-  bottom: "alpha"
-  bottom: "mean"
-  bottom: "variance"
-  bottom: "correlation_h"
-  bottom: "label"
-  top: "loss"
-  gmm_param {
-    num_mixtures: 40
-    base: 0.5
-  }
-  include { phase: TEST }
-}
+#layer {
+#  name: "loss"
+#  type: "GMMLoss"
+#  bottom: "alpha"
+#  bottom: "mean"
+#  bottom: "variance"
+#  bottom: "correlation_h"
+#  bottom: "label"
+#  gmm_param {
+#    num_mixtures: 40
+#    base: 0.5
+#  }
+#  include { phase: TRAIN }
+#}
+#
+#layer {
+#  name: "loss"
+#  type: "GMMLoss"
+#  bottom: "alpha"
+#  bottom: "mean"
+#  bottom: "variance"
+#  bottom: "correlation_h"
+#  bottom: "label"
+#  top: "loss"
+#  gmm_param {
+#    num_mixtures: 40
+#    base: 0.5
+#  }
+#  include { phase: TEST }
+#}
 
 
 #layer {

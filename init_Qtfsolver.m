@@ -21,7 +21,7 @@ Qsolver = caffe.Solver(Qnet_solver_def_file);
 Qtsolver = caffe.Solver(Qnet_solver_def_file);
 try
 Qsolver.net.copy_from(['Qnet_model/' num2str(iter_num) '.caffemodel']);
-Qtsolver.net.copy_from(['Qnet_model/' num2str(iter_num) '.caffemodel']);
+Qtsolver.net.copy_from(['Qnet_model/' num2str(0) '.caffemodel']);
 catch
 end
 

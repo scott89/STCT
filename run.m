@@ -4,21 +4,24 @@ dataset = dir(data_path);
 % epsilon = 0.5105;
 % epsilon = 0.01;
 % epsilon = 0.3306;
-epsilon = 1;
+epsilon = 0.94;
 
 % iter_num = 487375;
 % iter_num = 666560;
 % generate_data_list;
 % iter_num = 1150000;
-iter_num = 0;
-buffer_sz = 10000;
+iter_num = 54000;
+buffer_sz = 20000;
 % buffer_sz = 1;
 generate_data_list
 caffe.reset_all;
 Qtfsolver = init_Qtfsolver(iter_num);
 data_empty = true;
+
+    %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for k = 1:300
-    for i= 1:length(dataset)
+    
+    for i= 1 : length(dataset)
         if ~isdir([data_path dataset(i).name]) || strcmp(dataset(i).name, '.') || strcmp(dataset(i).name, '..') || strcmp(dataset(i).name, 'AE_train_Deer')
             continue;
         end
@@ -28,7 +31,7 @@ for k = 1:300
         while ~track_success
             [track_success, iter_num, epsilon, data_list, data_empty, restart_frame, lfea1, map1]= re_tracker(dataset(i).name, restart_frame, 512, epsilon, iter_num, Qtfsolver, data_list, data_empty, lfea1, map1);
             fail_num = fail_num + 1;
-            if mod(fail_num, 10) && restart_frame > 1
+            if mod(fail_num, 5) == 0 && restart_frame > 1
                 restart_frame = restart_frame - 10;
             elseif fail_num == 100
                     break;  
