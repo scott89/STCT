@@ -10,7 +10,8 @@ epsilon = 0.94;
 % iter_num = 666560;
 % generate_data_list;
 % iter_num = 1150000;
-iter_num = 54000;
+% iter_num = 54000;
+iter_num = 0;
 buffer_sz = 20000;
 % buffer_sz = 1;
 generate_data_list
@@ -19,9 +20,9 @@ Qtfsolver = init_Qtfsolver(iter_num);
 data_empty = true;
 
     %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for k = 1:300
+for k = 1:1
     
-    for i= 1 : length(dataset)
+    for i= 54 : length(dataset)
         if ~isdir([data_path dataset(i).name]) || strcmp(dataset(i).name, '.') || strcmp(dataset(i).name, '..') || strcmp(dataset(i).name, 'AE_train_Deer')
             continue;
         end
@@ -34,7 +35,7 @@ for k = 1:300
             if mod(fail_num, 5) == 0 && restart_frame > 1
                 restart_frame = restart_frame - 10;
             elseif fail_num == 100
-                    break;  
+                    continue;  
             end
         end
 

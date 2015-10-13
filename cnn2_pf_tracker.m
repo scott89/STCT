@@ -19,8 +19,8 @@ end
 roi1 = ext_roi(im1, location, l1_off,  roi_size, s1);
 %% save roi images
 %% ------------------------------
-figure(1)
-imshow(mat2gray(roi1));
+% figure(1)
+% imshow(mat2gray(roi1));
 
 
 %% preprocess roi
@@ -37,10 +37,12 @@ fsolver.net.forward_prefilled();
 % fea1 = caffe('forward', {single(roi1)});
 lfea1 = feature_blob4.get_data();
 fea_sz = size(lfea1);
+% lfea1 = imresize(feature_blob5.get_data(), fea_sz(1:2));
 
 gfea1 = imresize(feature_blob5.get_data(), fea_sz(1:2));
 
 cos_win = single(hann(fea_sz(1)) * hann(fea_sz(2))');
+% cos_win = single(ones(fea_sz(1), fea_sz(2)));
 % cos_win = single(ones(fea_sz(1), fea_sz(1)));
 lfea1 = bsxfun(@times, lfea1, cos_win);
 gfea1 = bsxfun(@times, gfea1, cos_win);
@@ -64,22 +66,31 @@ gnet_output = gsolver.net.blobs('conv5_f2');
 
 %% Iterations
 
-figure(11);stem(scale_param.y);
+% figure(11);stem(scale_param.y);
 diff_mask = ones(1, scale_param.number_of_scales_train);
 diff_mask((scale_param.number_of_scales_train+1)/2) = 0;
 gsolver.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(2), fea_sz(1)]);
+box_on_fea_sz = floor((fea_sz(1:2) ./ s1)/2) - 1;
+lfea1b = lfea1;
+lfea1b(fea_sz(1)/2 - box_on_fea_sz(1) : fea_sz(1)/2 + box_on_fea_sz(1)+1, ... 
+fea_sz(2)/2 - box_on_fea_sz(2) : fea_sz(2)/2 + box_on_fea_sz(2)+1, :) = 0;
+map1b = single(zeros(fea_sz(1), fea_sz(2)));
+lsolver.net.set_input_dim([0, 2, fea_sz(3), fea_sz(2), fea_sz(1)]);
 for i=1:max_iter
     gsolver.net.empty_net_param_diff();
     lsolver.net.empty_net_param_diff();
+    linput = cat(4, lfea1, lfea1b);
 
-    l_pre_map = lsolver.net.forward({lfea1});
+    l_pre_map1 = lsolver.net.forward({linput});
     scale_score = gsolver.net.forward({scale_param.train_sample});
-    l_pre_map = l_pre_map{1};
+    l_pre_map = l_pre_map1{1};
     scale_score = scale_score{1};
-    figure(1011); subplot(1,2,1); imagesc(permute(l_pre_map,[2,1,3]));
-    figure(1011); subplot(1,2,2); stem(scale_score)
-     
-    l_diff = l_pre_map-permute(single(map1), [2,1,3]);
+%     figure(1011); subplot(1,2,1); imagesc(permute(l_pre_map,[2,1,3]));
+%     figure(1011); subplot(1,2,2); stem(scale_score)
+%      
+    lf_diff = l_pre_map(:,:,1)-permute(single(map1), [2,1,3]);
+    lb_diff = 2 * (l_pre_map(:,:,2) - permute(single(map1b), [2,1,3]));
+    l_diff = cat(4, lf_diff, lb_diff);
 %     scale_score = scale_score - max(scale_score);
 %     p = exp(scale_score) / sum(exp(scale_score));
 %     figure(1011); subplot(1,2,2); stem(p)
@@ -94,8 +105,9 @@ for i=1:max_iter
     gsolver.net.backward({single(g_diff)});
     lsolver.apply_update();
     gsolver.apply_update();
-    fprintf('Iteration %03d/%03d, Local Loss %f, Global Loss %f\n', i, max_iter, sum(abs(l_diff(:))), sum(abs(g_diff(:))));
+    fprintf('Iteration %03d/%03d, Local Loss %f -- %f, Global Loss %f\n', i, max_iter, sum(abs(l_diff(:))), sum(abs(lb_diff(:))), sum(abs(g_diff(:))));
 end
+lsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
 %% ================================================================
 
 
@@ -111,17 +123,21 @@ state_tp1 = [];
 state_t = [];
 reward_tp1 = 1;
 reward_t = 0;
+l_pre_map_path = ['l_map/' set_name '/'];
+if ~isdir(l_pre_map_path)
+    mkdir(l_pre_map_path);
+end
 for im2_id = im1_id:fnum
     if im2_id == 285
         1;
     end
-        %% snapshot lnet and gnet
-    if mod(im2_id, 10) == 1 || im2_id == 1
-        lsolver.snapshot(['snapshot/lnet' num2str(im2_id) '.solverstate'], ['snapshot/lnet' num2str(im2_id) '.caffemodel']);
-        lsolver.net.save(['snapshot/lnet' num2str(im2_id) '.caffemodel']);
-        gsolver.snapshot(['snapshot/gnet' num2str(im2_id) '.solverstate'], ['snapshot/gnet' num2str(im2_id) '.caffemodel']);
-        gsolver.net.save(['snapshot/gnet' num2str(im2_id) '.caffemodel']);
-    end
+    %% snapshot lnet and gnet
+    %     if mod(im2_id, 10) == 1 || im2_id == 1
+    %         lsolver.snapshot(['snapshot/lnet' num2str(im2_id) '.solverstate'], ['snapshot/lnet' num2str(im2_id) '.caffemodel']);
+    %         lsolver.net.save(['snapshot/lnet' num2str(im2_id) '.caffemodel']);
+    %         gsolver.snapshot(['snapshot/gnet' num2str(im2_id) '.solverstate'], ['snapshot/gnet' num2str(im2_id) '.caffemodel']);
+    %         gsolver.net.save(['snapshot/gnet' num2str(im2_id) '.caffemodel']);
+    %     end
     
     tic;
     lsolver.net.set_net_phase('test');
@@ -144,14 +160,17 @@ for im2_id = im1_id:fnum
     fsolver.net.forward_prefilled();
     
     lfea2 = feature_blob4.get_data();
+%     lfea2 = imresize(feature_blob5.get_data(), fea_sz(1:2));
     gfea2 = imresize(feature_blob5.get_data(), fea_sz(1:2));
     %% compute confidence map
     lfea2 = bsxfun(@times, lfea2, cos_win);
     gfea2 = bsxfun(@times, gfea2, cos_win);
     
     l_pre_map = lsolver.net.forward({lfea2});
-    l_pre_map = (permute(l_pre_map{1}, [2,1,3]) - min(l_pre_map{1}(:)))/(max(l_pre_map{1}(:))-min(l_pre_map{1}(:))+eps);
-    %     l_pre_map = permute(l_pre_map{1}, [2,1,3]);
+    
+    %     l_pre_map = (permute(l_pre_map{1}, [2,1,3]) - min(l_pre_map{1}(:)))/(max(l_pre_map{1}(:))-min(l_pre_map{1}(:))+eps);
+    l_pre_map = permute(l_pre_map{1}, [2,1,3]);
+    save([l_pre_map_path num2str(im2_id) '.mat'], 'l_pre_map');
     state = cat(3, l_pre_map, state(:,:, 1:end-1));
     
     
@@ -162,7 +181,7 @@ for im2_id = im1_id:fnum
     l_im_map(roi_pos(2):roi_pos(2)+roi_pos(4)-1, roi_pos(1):roi_pos(1)+roi_pos(3)-1) = l_roi_map;
     l_im_map = l_im_map(pad+1:end-pad, pad+1:end-pad);
     [l_y, l_x] = find(l_im_map == max(l_im_map(:)), 1);
-
+    
     
     if im2_id >= im1_id + rl_channel_num - 1
         action_t = Qsolver.net.forward({single(state(:,:,1:end-1))});
@@ -182,7 +201,7 @@ for im2_id = im1_id:fnum
         fprintf('Random')
     end
     [~, action_id_t] = max(action_t);
-
+    
     switch action_id_t
         case 1
             update = false;
@@ -203,20 +222,21 @@ for im2_id = im1_id:fnum
     end
     
     %% local scale estimation
-    if move
-        base_location_l = [l_x - location(3)/2, l_y - location(4)/2, location([3,4])];
-%         reward_t = ((l_x - gt_center(1))^2 + (l_y - gt_center(2))^2)^0.5/dia;
-    else
-        base_location_l = location;
-%         reward_t = (sum((location(1:2)+location(3:4)/2 - gt_center(1:2)).^2))^0.5/dia;
-    end
+    move = max(l_pre_map(:)) > 0.08;
+        if move
+    base_location_l = [l_x - location(3)/2, l_y - location(4)/2, location([3,4])];
+    %         reward_t = ((l_x - gt_center(1))^2 + (l_y - gt_center(2))^2)^0.5/dia;
+        else
+    base_location_l = location;
+    %         reward_t = (sum((location(1:2)+location(3:4)/2 - gt_center(1:2)).^2))^0.5/dia;
+        end
     %     reward_t = single(-(reward_t >= 0.4) - (reward_t >= 0.8) - (reward_t >= 1.2));
-%     reward_t = - reward_t;
-%     if reward_t < -0.3 && update
-%         reward_t = reward_t-0.5;
-%     end
+    %     reward_t = - reward_t;
+    %     if reward_t < -0.3 && update
+    %         reward_t = reward_t-0.5;
+    %     end
     %     reward = [reward, reward_t];
-
+    
     
     
     
@@ -237,30 +257,36 @@ for im2_id = im1_id:fnum
     target_sz = location([3, 4]) * scale_param.currentScaleFactor;
     %     target_sz = round(target_sz);
     %     location = [l_x - floor(target_sz(1)/2), l_y - floor(target_sz(2)/2), target_sz(1), target_sz(2)];
-    if move
-        location = [l_x - target_sz(1)/2, l_y - target_sz(2)/2, target_sz(1), target_sz(2)];
-    end
+        if move
+    location = [l_x - target_sz(1)/2, l_y - target_sz(2)/2, target_sz(1), target_sz(2)];
+        end
     t = t + toc;
     %     fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
     %% show results
-    if im2_id == im1_id
-        figure('Number','off', 'Name','Target Heat Maps');
-        subplot(1,2,1);
-        im_handle1 = imagesc(l_pre_map);
-        subplot(1,2,2);
-        stem(scale_score);
-        im_handle2 = gca;
-    else
-        set(im_handle1, 'CData', l_pre_map)
-        stem(im_handle2, scale_score);
-    end
+ figure(101);imagesc(l_pre_map);
+        if im2_id == im1_id
+            figure('Number','off', 'Name','Target Heat Maps');
+            subplot(1,2,1);
+%             im_handle1 = imagesc(l_pre_map);
+%             im_handle1 = imshow(imresize(exp(2*l_pre_map)-exp(min(l_pre_map(:))), 2.5));
+            im_handle1 = imshow(imresize(l_pre_map-min(l_pre_map(:)), 2.5));
+%             figure(100);
+            subplot(1,2,2);
+            stem(scale_score);
+            im_handle2 = gca;
+        else
+%             set(im_handle1, 'CData', l_pre_map)
+%             set(im_handle1, 'CData', imresize(exp(2*l_pre_map)-exp(min(l_pre_map(:))), 2.5))
+            set(im_handle1, 'CData', imresize(l_pre_map-min(l_pre_map(:)), 2.5))
+            stem(im_handle2, scale_score);
+        end
     %%
     reward_t = reward_tp1;
     reward_tp1 = ComputeOverlap(location, GT(im2_id, :));
-%     reward_tp1 = double(reward_tp1>0.5);
+    %     reward_tp1 = double(reward_tp1>0.5);
     
-%     reward_t = (reward_t + reward_tp1) / 2;
-
+    %     reward_t = (reward_t + reward_tp1) / 2;
+    
     if im2_id >= im1_id + rl_channel_num;
         iter_num = iter_num + 1;
         state_t = state(:,:, 2:end);
@@ -301,12 +327,13 @@ for im2_id = im1_id:fnum
         gsolver.apply_update();
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
     end
-    if update %&& rand(1)>0.5
+    if max(l_pre_map(:))> 0.08 && rand(1) > 0.6%update %&& rand(1)>0.5
         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
         roi2 = impreprocess(roi2);
         feature_input.set_data(single(roi2));
         fsolver.net.forward_prefilled();
         lfea2 = feature_blob4.get_data();
+%         lfea2 = imresize(feature_blob5.get_data(), fea_sz(1:2));
         lfea2 = bsxfun(@times, lfea2, cos_win);
         %         l_off = location_last(1:2)-location(1:2);
         
@@ -333,123 +360,116 @@ for im2_id = im1_id:fnum
     %     positions(im2_id, :) = location;
     
     
-    %% Drwa resutls
-    if im2_id == im1_id,  %first frame, create GUI
-        figure('Number','off', 'Name','Tracking Results');
-        im_handle = imshow(uint8(im2), 'Border','tight', 'InitialMag', 100 + 100 * (length(im2) < 500));
-        rect_handle = rectangle('Position', location, 'EdgeColor','r', 'linewidth', 2);
-        text_handle = text(10, 10, sprintf('#%d / %d',im2_id, fnum));
-        set(text_handle, 'color', [0 1 1], 'fontsize', 15);
-    else
-        set(im_handle, 'CData', uint8(im2))
-        set(rect_handle, 'Position', location)
-        set(text_handle, 'string', sprintf('#%d / %d',im2_id, fnum));
-    end
-    saveas(im_handle, sprintf([sample_res '%04d.png'], im2_id));
+    % Drwa resutls
+        if im2_id == im1_id,  %first frame, create GUI
+            figure('Number','off', 'Name','Tracking Results');
+            im_handle = imshow(uint8(im2), 'Border','tight', 'InitialMag', 100 + 100 * (length(im2) < 500));
+            rect_handle = rectangle('Position', location, 'EdgeColor','r', 'linewidth', 2);
+            text_handle = text(10, 10, sprintf('#%d / %d',im2_id, fnum));
+            set(text_handle, 'color', [0 1 1], 'fontsize', 15);
+        else
+            set(im_handle, 'CData', uint8(im2))
+            set(rect_handle, 'Position', location)
+            set(text_handle, 'string', sprintf('#%d / %d',im2_id, fnum));
+        end
+        saveas(im_handle, sprintf([sample_res '%04d.png'], im2_id));
     
-    drawnow
+        drawnow
     
     %% reinforcement learning
-    if data_empty
-        data_empty = false;
-         for a_id = 1:size(data_list, 1)
-             for l_id = 1:size(data_list, 2)
-                 data_empty = data_empty || isempty(data_list{a_id, l_id});
-             end
-         end 
-    end
+    %     if data_empty
+    %         data_empty = false;
+    %          for a_id = 1:size(data_list, 1)
+    %              for l_id = 1:size(data_list, 2)
+    %                  data_empty = data_empty || isempty(data_list{a_id, l_id});
+    %              end
+    %          end
+    %     end
     
-    if ~data_empty
-        average_loss = 0;
-        for iteration = 1:10
-            sample_id = [];
-            for a_id = 1:size(data_list, 1)
-                for l_id = 1:size(data_list, 2)
-                    sample_id = [sample_id data_list{a_id, l_id}(randi(length(data_list{a_id, l_id}), 1, batch_size/8))];
-                end
-            end
-            %         sample_id = randi(iter_num, batch_size, 1);
-            
-            Qtsolver.net.set_input_dim([0, batch_size, rl_channel_num, fea_sz(2), fea_sz(1)]);
-            Qtsolver.net.set_net_phase('test');
-            Qsolver.net.set_input_dim([0, batch_size, rl_channel_num, fea_sz(2), fea_sz(1)]);
-            Qsolver.net.empty_net_param_diff();
-            
-            %% load sample experients
-            for i = 1:batch_size
-                experience(i) = load([train_data_path num2str(sample_id(i)) '.mat']);
-            end
-            r = single([experience.reward_t]);
-            a = [experience.action_id_t];
-            
-            train_states = [experience.state_t];
-            train_states = reshape(train_states, [fea_sz(1), fea_sz(2), batch_size, rl_channel_num]);
-            train_states = permute(train_states, [1,2,4,3]);
-            train_state_tp1s = [experience.state_tp1];
-            train_state_tp1s = reshape(train_state_tp1s, [fea_sz(1), fea_sz(2), batch_size, rl_channel_num]);
-            train_state_tp1s = permute(train_state_tp1s, [1,2,4,3]);
-            
-            Q_tp1_all = Qtsolver.net.forward({single(train_state_tp1s)});
-            
-            Q_tp1 = max(Q_tp1_all{1});
-            y = r + forget_rate * Q_tp1;
-            
-            
-            Q_t_all = Qsolver.net.forward({single(train_states)});
-            Q_t = Q_t_all{1};
-            
-            
-            diff_Q = single(zeros(4, batch_size));
-            action_ind = sub2ind([4, batch_size], a, 1:batch_size);
-            diff_Q(action_ind) = 1/batch_size * (Q_t(action_ind) - y);
-            Qsolver.net.backward({diff_Q});
-            Qsolver.apply_update();
-            
-            
-            Qsolver.net.set_input_dim([0, 1, rl_channel_num, fea_sz(2), fea_sz(1)]);
-            average_loss = average_loss + sum(abs(diff_Q(:)));
-            
-        end
-        fprintf('LR Loss: %f', average_loss / 10);
-    end
+    %     if ~data_empty
+    %         average_loss = 0;
+    %         for iteration = 1:10
+    %             sample_id = [];
+    %             for a_id = 1:size(data_list, 1)
+    %                 for l_id = 1:size(data_list, 2)
+    %                     sample_id = [sample_id data_list{a_id, l_id}(randi(length(data_list{a_id, l_id}), 1, batch_size/8))];
+    %                 end
+    %             end
+    %             %         sample_id = randi(iter_num, batch_size, 1);
+    %
+    %             Qtsolver.net.set_input_dim([0, batch_size, rl_channel_num, fea_sz(2), fea_sz(1)]);
+    %             Qtsolver.net.set_net_phase('test');
+    %             Qsolver.net.set_input_dim([0, batch_size, rl_channel_num, fea_sz(2), fea_sz(1)]);
+    %             Qsolver.net.empty_net_param_diff();
+    %
+    %             %% load sample experients
+    %             for i = 1:batch_size
+    %                 experience(i) = load([train_data_path num2str(sample_id(i)) '.mat']);
+    %             end
+    %             r = single([experience.reward_t]);
+    %             a = [experience.action_id_t];
+    %
+    %             train_states = [experience.state_t];
+    %             train_states = reshape(train_states, [fea_sz(1), fea_sz(2), batch_size, rl_channel_num]);
+    %             train_states = permute(train_states, [1,2,4,3]);
+    %             train_state_tp1s = [experience.state_tp1];
+    %             train_state_tp1s = reshape(train_state_tp1s, [fea_sz(1), fea_sz(2), batch_size, rl_channel_num]);
+    %             train_state_tp1s = permute(train_state_tp1s, [1,2,4,3]);
+    %
+    %             Q_tp1_all = Qtsolver.net.forward({single(train_state_tp1s)});
+    %
+    %             Q_tp1 = max(Q_tp1_all{1});
+    %             y = r + forget_rate * Q_tp1;
+    %
+    %
+    %             Q_t_all = Qsolver.net.forward({single(train_states)});
+    %             Q_t = Q_t_all{1};
+    %
+    %
+    %             diff_Q = single(zeros(4, batch_size));
+    %             action_ind = sub2ind([4, batch_size], a, 1:batch_size);
+    %             diff_Q(action_ind) = 1/batch_size * (Q_t(action_ind) - y);
+    %             Qsolver.net.backward({diff_Q});
+    %             Qsolver.apply_update();
+    %
+    %
+    %             Qsolver.net.set_input_dim([0, 1, rl_channel_num, fea_sz(2), fea_sz(1)]);
+    %             average_loss = average_loss + sum(abs(diff_Q(:)));
+    %
+    %         end
+    %         fprintf('LR Loss: %f', average_loss / 10);
+    % end
     fprintf('\n');
     if epsilon > 0.1
         epsilon = epsilon - 1e-6;
     end
-    %% save Qnet caffemodel
-    if mod(iter_num, snapshot) == 0
-        Qsolver.net.save(sprintf('%s%d.caffemodel', Qnet_model_path, iter_num));
-        xx = Qsolver.net.params('conv1',1).get_data;
-        for i = 1:size(xx,4)
-            hx=figure(22);subplot(4,8,i);imagesc(xx(:,:,1,i));axis off;
-        end
-        saveas(hx, sprintf('./weights/%06d.png',iter_num));
-    end
-    %% updagte Qtsolver
-    if mod(iter_num, Qtupdate_interval) == 0
-        Qsolver.net.save(sprintf('%s%d-update.caffemodel', Qnet_model_path, iter_num));
-        Qtsolver.net.copy_from(sprintf('%s%d-update.caffemodel', Qnet_model_path, iter_num));
-    end
+    %     %% save Qnet caffemodel
+    %     if mod(iter_num, snapshot) == 0
+    %         Qsolver.net.save(sprintf('%s%d.caffemodel', Qnet_model_path, iter_num));
+    %         xx = Qsolver.net.params('conv1',1).get_data;
+    %         for i = 1:size(xx,4)
+    %             hx=figure(22);subplot(4,8,i);imagesc(xx(:,:,1,i));axis off;
+    %         end
+    %         saveas(hx, sprintf('./weights/%06d.png',iter_num));
+    %     end
+    %     %% updagte Qtsolver
+    %     if mod(iter_num, Qtupdate_interval) == 0
+    %         Qsolver.net.save(sprintf('%s%d-update.caffemodel', Qnet_model_path, iter_num));
+    %         Qtsolver.net.copy_from(sprintf('%s%d-update.caffemodel', Qnet_model_path, iter_num));
+    %     end
+    %
     
-
-    if im2_id > im1_id && reward_t <= 0.2
-        track_success = false;
-        restart_frame = 10*(floor(im2_id/10)-1) + 1;
-        if restart_frame < 1
-            restart_frame = 1;
-        end
-        return;
-    end
-%     if im2_id == 5
-%          track_success = false;
-%         restart_frame = 10*(floor(im2_id/10)-1) + 1;
-%         if restart_frame < 1
-%             restart_frame = 1;
-%         end
-%         return;
-%     end
+    %     if im2_id > im1_id && reward_t <= 0.2
+    %         track_success = false;
+    %         restart_frame = 10*(floor(im2_id/10)-1) + 1;
+    %         if restart_frame < 1
+    %             restart_frame = 1;
+    %         end
+    %         return;
+    %     end
     
-
+    
+    
 end
 track_success = true;
 restart_frame = nan;
@@ -458,8 +478,8 @@ restart_frame = nan;
 % results{1}.startFrame = 1;
 % results{1}.annoBegin = 1;
 % resutls{1}.len = fnum;
-% 
-% 
+%
+%
 % save([track_res  lower(set_name) '_fct_scale_base1.mat'], 'results');
 % fprintf('Speed: %d fps\n', fnum/t);
 end
