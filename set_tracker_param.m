@@ -1,5 +1,5 @@
 pf_param = struct('affsig', [10,10,.004,.00,0.00,0], 'p_sz', 64,...
-            'p_num', 600, 'mv_thr', 0.1, 'up_thr', 0.35, 'pos_thr', 0.3, 'roi_scale', 2, 'map_sigma_factor', 1/8); % roi_scale = 2;
+            'p_num', 600, 'mv_thr', 0.1, 'up_thr', 0.35, 'pos_thr', 0.3, 'roi_scale', 2, 'map_sigma_factor', 1/12); % roi_scale = 2;
    
 close all;
 
