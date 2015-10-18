@@ -12,7 +12,7 @@ input_dim: 46 #48
 
 input: "w0"
 input_dim: 1 
-input_dim: 128
+input_dim: 100
 input_dim: 1
 input_dim: 1
 
@@ -40,7 +40,7 @@ layer {
     decay_mult: 0
   }
   convolution_param {
-    num_output: 128
+    num_output: 100
     pad: 2
     kernel_size: 5
     weight_filler {
@@ -67,7 +67,8 @@ layer {
   type: "Reshape"
   reshape_param {
     shape {
-      dim: 128
+      dim: 0
+      dim: 100
     }
   }
 }
@@ -79,7 +80,7 @@ layer {
   name: "conv5_f1_drop"
   type: "Scalar"
   scalar_param {
-    axis: 1
+    axis: 0
   }
 }
 
