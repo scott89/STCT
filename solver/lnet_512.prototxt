@@ -10,11 +10,6 @@ input_dim: 46 #48
 #input_dim: 480
 #input_dim: 480
 
-input: "w0"
-input_dim: 1 
-input_dim: 100
-input_dim: 1
-input_dim: 1
 
 layer { 
   bottom: "data"
@@ -42,6 +37,7 @@ layer {
   convolution_param {
     num_output: 100
     pad: 2
+    mask: true
     kernel_size: 5
     weight_filler {
       type: "gaussian"
@@ -61,31 +57,7 @@ layer{
 }
 
 layer {
-  bottom: "w0"
-  top: "w"
-  name: "w_reshape"
-  type: "Reshape"
-  reshape_param {
-    shape {
-      dim: 0
-      dim: 100
-    }
-  }
-}
-
-layer {
   bottom: "conv5_f1"
-  bottom: "w"
-  top: "conv5_f1_drop"
-  name: "conv5_f1_drop"
-  type: "Scalar"
-  scalar_param {
-    axis: 0
-  }
-}
-
-layer {
-  bottom: "conv5_f1_drop"
   top: "conv5_f2"
   name: "conv5_f2"
   type: "Convolution"
@@ -98,7 +70,8 @@ layer {
     decay_mult: 0
   }
   convolution_param {
-    num_output: 1
+    num_output: 100
+    group: 100
     pad: 1
     kernel_size: 3
     weight_filler {

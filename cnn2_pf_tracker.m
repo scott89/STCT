@@ -34,20 +34,17 @@ scale_param = init_scale_estimator;
 scale_param.train_sample = get_scale_sample(lfea1, scale_param.scaleFactors_train, scale_param.scale_window_train);
 %%
 max_iter = 80;
-num_occlusion = 5;
-weight_dim = 100;
+ensemble_num = 100;
 lsolver.net.set_net_phase('train');
 gsolver.net.set_net_phase('train');
 Qsolver.net.set_net_phase('train');
 gsolver.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(2), fea_sz(1)]);
-lsolver.net.set_input_dim([0, num_occlusion, fea_sz(3), fea_sz(2), fea_sz(1);
-                           1, num_occlusion, weight_dim, 1, 1]);
+lsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
+
 %% prepare training samples
 map1 =  GetMap(size(im1), fea_sz, roi_size, location, l1_off, s1, pf_param.map_sigma_factor, 'trans_gaussian');
-map1 = permute(map1, [2,1,3,4]);
-map1 = repmat(single(map1), [1,1,1,num_occlusion]);
-lfea1 = add_occlusion(lfea1);
-w0 = get_featuremap_weights(weight_dim, num_occlusion);
+map1 = permute(map1, [2,1,3]);
+map1 = repmat(single(map1), [1,1,ensemble_num]);
 %% Iterations
 
 % box_on_fea_sz = floor((fea_sz(1:2) ./ s1)/2) - 1;
@@ -58,7 +55,7 @@ w0 = get_featuremap_weights(weight_dim, num_occlusion);
 for i=1:max_iter
     gsolver.net.empty_net_param_diff();
     lsolver.net.empty_net_param_diff();
-    l_pre_map1 = lsolver.net.forward({lfea1, w0});
+    l_pre_map1 = lsolver.net.forward({lfea1});
     scale_score = gsolver.net.forward({scale_param.train_sample});
     l_pre_map = l_pre_map1{1};
     scale_score = scale_score{1};
@@ -72,8 +69,8 @@ for i=1:max_iter
 
     lsolver.apply_update();
     gsolver.apply_update();
-    for i = 1:5
-        figure(100);subplot(2,3,i);imagesc(l_pre_map(:,:,1,i));
+    for i = 1:16
+        figure(100);subplot(4,4,i);imagesc(l_pre_map(:,:,i));
     end
     fprintf('Iteration %03d/%03d, Local Loss %f -- %f, Global Loss %f\n', i, max_iter, sum(abs(lf_diff(:))), sum(abs(lf_diff(:))), sum(abs(g_diff(:))));
 end
@@ -114,12 +111,11 @@ for im2_id = im1_id:fnum
     lfea2 = feature_blob4.get_data();
     %% compute confidence map
     lfea2 = bsxfun(@times, lfea2, cos_win);
-    lfea2 = add_occlusion(lfea2);
-    l_pre_map = lsolver.net.forward({lfea2, w0});
+    l_pre_map = lsolver.net.forward({lfea2});
     
     l_pre_map = permute(l_pre_map{1}, [2,1,3,4]);
 %     l_pre_map = max(l_pre_map, [], 4);
-     l_pre_map = mean(l_pre_map, 4);
+     l_pre_map = mean(l_pre_map, 3);
     l_pre_map = reshape(l_pre_map, [fea_sz(1), fea_sz(2)]);
     save([l_pre_map_path num2str(im2_id) '.mat'], 'l_pre_map');
     
@@ -209,18 +205,17 @@ for im2_id = im1_id:fnum
         lfea2 = feature_blob4.get_data();
         lfea2 = bsxfun(@times, lfea2, cos_win);
         map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l1_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
-        map2 = permute(map2, [2,1,3,4]);
-        map2 = repmat(single(map2), [1,1,1,num_occlusion]);
-        lfea2 = add_occlusion(lfea2);
+        map2 = permute(map2, [2,1,3]);
+        map2 = repmat(single(map2), [1,1,ensemble_num]);
         lsolver.net.set_net_phase('train');
         for ii = 1:1
             lsolver.net.empty_net_param_diff();
-            l_pre_map = lsolver.net.forward({lfea2, w0});
+            l_pre_map = lsolver.net.forward({lfea2});
             l_pre_map = l_pre_map{1};
             diff_l{1} = 0.5*(l_pre_map-map2);
             lsolver.net.backward(diff_l);
             %% first frame
-            l_pre_map = lsolver.net.forward({lfea1, w0});
+            l_pre_map = lsolver.net.forward({lfea1});
             diff_l{1}= 0.5*(l_pre_map{1}-map1);
             lsolver.net.backward(diff_l);
             lsolver.apply_update();
