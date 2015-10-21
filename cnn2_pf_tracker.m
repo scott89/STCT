@@ -46,37 +46,31 @@ map1 =  GetMap(size(im1), fea_sz, roi_size, location, l1_off, s1, pf_param.map_s
 map1 = permute(map1, [2,1,3]);
 map1 = repmat(single(map1), [1,1,ensemble_num]);
 w0 = single(ones(1, 1, ensemble_num, 1));
-w00 = w0;
+wt0 = w0;
 wt = single(zeros(1, 1, ensemble_num, 1));
 wr = single(ones(100,1));
-
+eta = 0.2; % weight of selected feature maps
 lambda = 0.001; % ridge regression parameter
 lr = 0.; %0.2;
 momen = 1;%0.99;
+scale_thr = 0.05;
 %% Iterations
-
-% box_on_fea_sz = floor((fea_sz(1:2) ./ s1)/2) - 1;
-% lfea1b = lfea1;
-% lfea1b(fea_sz(1)/2 - box_on_fea_sz(1) : fea_sz(1)/2 + box_on_fea_sz(1)+1, ... 
-% fea_sz(2)/2 - box_on_fea_sz(2) : fea_sz(2)/2 + box_on_fea_sz(2)+1, :) = 0;
-% map1b = single(zeros(fea_sz(1), fea_sz(2)));
 for i=1:max_iter
     gsolver.net.empty_net_param_diff();
     lsolver.net.empty_net_param_diff();
     l_pre_map1 = lsolver.net.forward({lfea1, w0});
     scale_score = gsolver.net.forward({scale_param.train_sample});
     l_pre_map = l_pre_map1{1};
+%     l_pre_map(:,:, 1:5) = repmat(sum(l_pre_map(:,:,1:5), 3), [1, 1, 5]);
     scale_score = scale_score{1};
     lf_diff = l_pre_map-map1;
-%     lb_diff = 2 * (l_pre_map(:,:,2) - permute(single(map1b), [2,1,3]));
-%     l_diff = cat(4, lf_diff, lb_diff);
     g_diff = (scale_score-scale_param.y)/length(scale_param.number_of_scales_train);
 
     lsolver.net.backward({single(lf_diff)});
     gsolver.net.backward({single(g_diff)});
-
     lsolver.apply_update();
     gsolver.apply_update();
+    
     for j = 1:16
         figure(100);subplot(4,4,j);imagesc(l_pre_map(:,:,j));
     end
@@ -87,12 +81,9 @@ max(max(xx));
 figure(100);plot(ans(:), 'O--');
 %% ================================================================
 %% initialize weight
-y = reshape(map1(:,:,1), [], 1);
-D = reshape(l_pre_map(:,:,1:5), [], 5);
-% wt(1:5) = lr * ((D'*D + lambda * eye(5)) \ (D' * y));
-wt(1:5) = momen * lsqnonneg(double(D), double(y));
-wt(1:5)=0; wt(2:5)=1;
-w0(1:5) = wt(1:5);
+
+wt(1:5)=0.2;
+wt0(1:5) = wt(1:5);
 wr(1:5) = 0;
 select = 1:5;
 
@@ -146,7 +137,7 @@ for im2_id = im1_id:fnum
     l_x = mean(l_x);
     l_y = mean(l_y);
     %% local scale estimation
-    move = max(l_pre_map(:)) > 0.4;
+    move = max(l_pre_map(:)) > 0.1;
     if move
         if move
             base_location_l = [l_x - location(3)/2, l_y - location(4)/2, location([3,4])];
@@ -164,8 +155,12 @@ for im2_id = im1_id:fnum
         scale_score = gsolver.net.forward({scale_sample});
         scale_score = scale_score{1};
         
-        [~, recovered_scale]= max(scale_score);
-        recovered_scale = scale_param.number_of_scales_test+1 - recovered_scale;
+        [max_scale_score, recovered_scale]= max(scale_score);
+        if max_scale_score > scale_thr
+            recovered_scale = scale_param.number_of_scales_test+1 - recovered_scale;
+        else
+            recovered_scale = (scale_param.number_of_scales_test+1)/2;
+        end
         %% what if the scale prediction confidence is very low??
         % update the scale
         scale_param.currentScaleFactor = scale_param.scaleFactors_test(recovered_scale);
@@ -228,9 +223,8 @@ for im2_id = im1_id:fnum
         gsolver.apply_update();
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
     end
-    
-    if max(l_pre_map(:))> 0.4 && rand(1) > 0.3 || im2_id <6 %update %&& rand(1)>0.5
-%     if rand(1) > 0.5 || im2_id <6 %update %&& rand(1)>0.5
+    %% update with different strategies for different feature maps
+    if move && rand(1) > 0.3 || im2_id <5
         fprintf('UPDATE\n');
         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
         roi2 = impreprocess(roi2);
@@ -242,60 +236,39 @@ for im2_id = im1_id:fnum
         map2 = permute(map2, [2,1,3]);
         map2 = repmat(single(map2), [1,1,ensemble_num]);
         lsolver.net.set_net_phase('train');
-        for ii = 1:1
+        for ii = 1:2
             lsolver.net.empty_net_param_diff();
-            l_pre_map = lsolver.net.forward({lfea2, w0});
-            l_pre_map = l_pre_map{1};
-%             pred = sum(l_pre_map(:,:,select),3);
-%             pred = repmat(pred, [1, 1, ensemble_num]);
-            diff_l{1} = 0.5*(l_pre_map-map2);
-%             lsolver.net.blobs('w').set_data(wr);
-            lsolver.net.backward(diff_l);
+            l_pre_map_train2 = lsolver.net.forward({lfea2, wt0});
+            l_pre_map_train2 = l_pre_map_train2{1};
+            diff_l2 = 0.5*(l_pre_map_train2-(map2 - eta * repmat(sum(l_pre_map_train2(:,:,select), 3), [1,1, ensemble_num])));
+            %
+            pred2 = repmat(sum(l_pre_map_train2(:,:,select), 3), [1, 1, length(select)]);  
+            diff_l2(:,:,select) = 0.5 * (pred2 - map2(:,:,select));
+            lsolver.net.backward({diff_l2});
             %% first frame
-            l_pre_map = lsolver.net.forward({lfea1, w0});
-%             l_pre_map = l_pre_map{1};
-%             diff_l{1} = 0.5*(l_pre_map-map1);
-%             
-%             pred = sum(l_pre_map(:,:,select),3);
-%             pred = repmat(pred, [1, 1, ensemble_num]);
-%             diff_l{1} = 0.5*(pred-map1);
-            
-            diff_l{1}= 0.5*(l_pre_map{1}-map1);
-%             lsolver.net.blobs('w').set_data(wr);
-            lsolver.net.backward(diff_l);
+            l_pre_map_train1 = lsolver.net.forward({lfea1, wt0});
+            l_pre_map_train1 = l_pre_map_train1{1};
+            diff_l1 = 0.5*(l_pre_map_train1-(map1 - eta * repmat(sum(l_pre_map_train1(:,:,select), 3), [1,1, ensemble_num])));
+            pred1 = repmat(sum(l_pre_map_train1(:,:,select), 3), [1, 1, length(select)]);  
+            diff_l1(:,:,select) = 0.5 * (pred1 - map1(:,:,select));  
+            lsolver.net.backward({diff_l1});
             lsolver.apply_update();
         end
         lsolver.net.set_net_phase('test');
-%         l_pre_map = lsolver.net.forward({lfea2, w0});
-%         l_pre_map = l_pre_map{1};
-%         pred = sum(l_pre_map(:,:,select),3);
-%         y = reshape(map2(:,:,1), [], 1) - reshape(pred, [], 1);
-%         dist = l_pre_map-map2;
-%         dist = sum(sum(abs(dist)));
-%         dist(select) = inf;
-%         [~, id] = min(dist);
-%         
-%         D = reshape(l_pre_map(:,:,id), [], 1);    
-%       
-%         wt(id) = (D' * D) \ (D' * y);
-        l_pre_map = lsolver.net.forward({lfea2, w00});
-        l_pre_map = l_pre_map{1};
-        y = reshape(map2(:,:,1), [], 1);
-        dist = l_pre_map-map2;
-        dist = sum(sum(abs(dist)));
-        dist(select) = inf;
-        [~, id] = min(dist);
-        select = [select, id];
-         
-        D = reshape(l_pre_map(:,:,select), [], length(select));    
-        
-        wt(select) = momen * wt(select) + lr * reshape(lsqnonneg(double(D), double(y)), 1, 1, length(select));
-%         wt(select) = momen * wt(select) + lr * reshape((D' * D + lambda * eye(length(select))) \ (D' * y), 1, 1, length(select));
-        w0(select) = wt(select);
-        wr(id) = 0;
-        select = [select, id];
-         
-    end    
+        %% add feature maps
+        if max(l_pre_map(:))> 0.4  && length(select) < ensemble_num %&& max(l_pre_map(:)) < 0.5
+            pred = pred2(:,:,1);
+            pred_diff = pred - map2(:,:,1);
+            if max(abs(pred_diff(:))) > 0.4
+                dist = sum(sum(abs(diff_l2)));
+                dist(select) = inf;
+                [~, id] = min(dist);
+                select = [select, id];
+                wt(id) = 0.2;
+                wt0(id) = 0.2;
+            end
+        end
+    end
     %     positions(im2_id, :) = location;
     % Drwa resutls
         if im2_id == im1_id,  %first frame, create GUI
@@ -415,8 +388,8 @@ elseif strcmp(type, 'trans_gaussian')
     sz = location([4,3]);
 %     output_sigma_factor = 1/32;%1/16;
    % [rs, cs] = ndgrid((1:sz(1)) - floor(sz(1)/2), (1:sz(2)) - floor(sz(2)/2));
-
-    [rs, cs] = ndgrid((0:sz(1)-1) - floor(sz(1)/2), (0:sz(2)-1) - floor(sz(2)/2));
+%     [rs, cs] = ndgrid((0:sz(1)-1) - floor(sz(1)/2), (0:sz(2)-1) - floor(sz(2)/2));
+    [rs, cs] = ndgrid((0.5:sz(1)-0.5) - (sz(1)/2), (0.5:sz(2)-0.5) - (sz(2)/2));
     output_sigma = sqrt(prod(location([3,4]))) * output_sigma_factor;
     mask = exp(-0.5 * (((rs.^2 + cs.^2) / output_sigma^2)));
     map = zeros(im_sz(1), im_sz(2));
@@ -442,6 +415,7 @@ else error('unknown map type');
 end
 map = ext_roi(map(1+pad:end-pad, 1+pad:end-pad), location, l_off, roi_size, s);
 map = imresize(map(:,:,1), [fea_sz(1), fea_sz(2)]);
+map = (map - min(map(:))) / (max(map(:)) - min(map(:)) + eps);
 end
 
 function I = crop_bg(im, GT, mean_pix)
