@@ -9,7 +9,11 @@ input_dim: 46 #48
 input_dim: 46 #48
 #input_dim: 480
 #input_dim: 480
-
+input: "w0"
+input_dim: 1 
+input_dim: 100
+input_dim: 1
+input_dim: 1
 
 layer { 
   bottom: "data"
@@ -82,6 +86,29 @@ layer {
       type: "constant"
       value: 0
     }
+  }
+}
+layer {
+  bottom: "w0"
+  top: "w"
+  name: "w_reshape"
+  type: "Reshape"
+  reshape_param {
+     shape {
+       dim: 0
+       dim: 100
+     }
+  }
+}
+
+layer {
+  bottom: "conv5_f2"
+  bottom: "w"
+  top: "conv5_f2_drop"
+  name: "conv5_f2_drop"
+  type: "Scalar"
+  scalar_param {
+    axis: 0
   }
 }
 #layers{ 

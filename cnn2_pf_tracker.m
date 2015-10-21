@@ -45,6 +45,14 @@ lsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
 map1 =  GetMap(size(im1), fea_sz, roi_size, location, l1_off, s1, pf_param.map_sigma_factor, 'trans_gaussian');
 map1 = permute(map1, [2,1,3]);
 map1 = repmat(single(map1), [1,1,ensemble_num]);
+w0 = single(ones(1, 1, ensemble_num, 1));
+w00 = w0;
+wt = single(zeros(1, 1, ensemble_num, 1));
+wr = single(ones(100,1));
+
+lambda = 0.001; % ridge regression parameter
+lr = 0.; %0.2;
+momen = 1;%0.99;
 %% Iterations
 
 % box_on_fea_sz = floor((fea_sz(1:2) ./ s1)/2) - 1;
@@ -55,7 +63,7 @@ map1 = repmat(single(map1), [1,1,ensemble_num]);
 for i=1:max_iter
     gsolver.net.empty_net_param_diff();
     lsolver.net.empty_net_param_diff();
-    l_pre_map1 = lsolver.net.forward({lfea1});
+    l_pre_map1 = lsolver.net.forward({lfea1, w0});
     scale_score = gsolver.net.forward({scale_param.train_sample});
     l_pre_map = l_pre_map1{1};
     scale_score = scale_score{1};
@@ -69,8 +77,8 @@ for i=1:max_iter
 
     lsolver.apply_update();
     gsolver.apply_update();
-    for i = 1:16
-        figure(100);subplot(4,4,i);imagesc(l_pre_map(:,:,i));
+    for j = 1:16
+        figure(100);subplot(4,4,j);imagesc(l_pre_map(:,:,j));
     end
     fprintf('Iteration %03d/%03d, Local Loss %f -- %f, Global Loss %f\n', i, max_iter, sum(abs(lf_diff(:))), sum(abs(lf_diff(:))), sum(abs(g_diff(:))));
 end
@@ -78,8 +86,16 @@ xx = lsolver.net.blobs('conv5_f1').get_data;
 max(max(xx));
 figure(100);plot(ans(:), 'O--');
 %% ================================================================
+%% initialize weight
+y = reshape(map1(:,:,1), [], 1);
+D = reshape(l_pre_map(:,:,1:5), [], 5);
+% wt(1:5) = lr * ((D'*D + lambda * eye(5)) \ (D' * y));
+wt(1:5) = momen * lsqnonneg(double(D), double(y));
+wt(1:5)=0; wt(2:5)=1;
+w0(1:5) = wt(1:5);
+wr(1:5) = 0;
+select = 1:5;
 
- 
 t=0;
 fnum = size(GT,1);
 positions = zeros(fnum, 4);
@@ -90,6 +106,9 @@ if ~isdir(l_pre_map_path)
     mkdir(l_pre_map_path);
 end
 for im2_id = im1_id:fnum
+    if im2_id == 72
+        1;
+    end
     tic;
     lsolver.net.set_net_phase('test');
     gsolver.net.set_net_phase('test');
@@ -111,12 +130,11 @@ for im2_id = im1_id:fnum
     lfea2 = feature_blob4.get_data();
     %% compute confidence map
     lfea2 = bsxfun(@times, lfea2, cos_win);
-    l_pre_map = lsolver.net.forward({lfea2});
+    l_pre_map = lsolver.net.forward({lfea2, wt});
     
     l_pre_map = permute(l_pre_map{1}, [2,1,3,4]);
 %     l_pre_map = max(l_pre_map, [], 4);
-     l_pre_map = mean(l_pre_map, 3);
-    l_pre_map = reshape(l_pre_map, [fea_sz(1), fea_sz(2)]);
+     l_pre_map = sum(l_pre_map, 3);
     save([l_pre_map_path num2str(im2_id) '.mat'], 'l_pre_map');
     
     %% compute local confidence
@@ -128,50 +146,65 @@ for im2_id = im1_id:fnum
     l_x = mean(l_x);
     l_y = mean(l_y);
     %% local scale estimation
-    move = max(l_pre_map(:)) > 0.08;
+    move = max(l_pre_map(:)) > 0.4;
     if move
-        base_location_l = [l_x - location(3)/2, l_y - location(4)/2, location([3,4])];
-    else
-        base_location_l = location;
+        if move
+            base_location_l = [l_x - location(3)/2, l_y - location(4)/2, location([3,4])];
+        else
+            base_location_l = location;
+            
+        end
+        roi2 = ext_roi(im2, base_location_l, l2_off,  roi_size, s2);
+        roi2 = impreprocess(roi2);
+        feature_input.set_data(single(roi2));
+        fsolver.net.forward_prefilled();
+        lfea2 = feature_blob4.get_data();
+        lfea2 = bsxfun(@times, lfea2, cos_win);
+        scale_sample = get_scale_sample(lfea2, scale_param.scaleFactors_test, scale_param.scale_window_test);
+        scale_score = gsolver.net.forward({scale_sample});
+        scale_score = scale_score{1};
         
-    end        
-    roi2 = ext_roi(im2, base_location_l, l2_off,  roi_size, s2);
-    roi2 = impreprocess(roi2);
-    feature_input.set_data(single(roi2));
-    fsolver.net.forward_prefilled();
-    lfea2 = feature_blob4.get_data();
-    lfea2 = bsxfun(@times, lfea2, cos_win);
-    scale_sample = get_scale_sample(lfea2, scale_param.scaleFactors_test, scale_param.scale_window_test);
-    scale_score = gsolver.net.forward({scale_sample});
-    scale_score = scale_score{1};
-    
-    [~, recovered_scale]= max(scale_score);
-    recovered_scale = scale_param.number_of_scales_test+1 - recovered_scale;
-    % update the scale
-    scale_param.currentScaleFactor = scale_param.scaleFactors_test(recovered_scale);
-    target_sz = location([3, 4]) * scale_param.currentScaleFactor;
-    %     target_sz = round(target_sz);
-    %     location = [l_x - floor(target_sz(1)/2), l_y - floor(target_sz(2)/2), target_sz(1), target_sz(2)];
-    if move
+        [~, recovered_scale]= max(scale_score);
+        recovered_scale = scale_param.number_of_scales_test+1 - recovered_scale;
+        %% what if the scale prediction confidence is very low??
+        % update the scale
+        scale_param.currentScaleFactor = scale_param.scaleFactors_test(recovered_scale);
+        target_sz = location([3, 4]) * scale_param.currentScaleFactor;
+        %     target_sz = round(target_sz);
+        %     location = [l_x - floor(target_sz(1)/2), l_y - floor(target_sz(2)/2), target_sz(1), target_sz(2)];
+        
         location = [l_x - floor(target_sz(1)/2), l_y - floor(target_sz(2)/2), target_sz(1), target_sz(2)];
+    else
+         recovered_scale = (scale_param.number_of_scales_test+1)/2;
+        %% what if the scale prediction confidence is very low??
+        % update the scale
+        scale_param.currentScaleFactor = scale_param.scaleFactors_test(recovered_scale);
     end
     t = t + toc;
     fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
     %% show results
-    figure(101);imagesc(l_pre_map);
     if im2_id == im1_id
         figure('Number','off', 'Name','Target Heat Maps');
-        subplot(1,2,1);
+        subplot(2,2,1);
         im_handle1 = imshow(imresize(l_pre_map-min(l_pre_map(:)), 2.5));
-        subplot(1,2,2);
+        subplot(2,2,2);
         stem(scale_score);
         im_handle2 = gca;
+        subplot(2,2,3);
+        im_handle3 = imagesc(l_pre_map);
+        subplot(2,2,4);
+        plot(wt(:), 'o--');
+        im_handle4 = gca;
+        
     else
         set(im_handle1, 'CData', imresize(l_pre_map-min(l_pre_map(:)), 2.5))
         stem(im_handle2, scale_score);
+        set(im_handle3, 'CData', l_pre_map);
+        plot(im_handle4, wt(:), 'o--');
+        
     end  
     %% Update lnet and gnet
-    if    recovered_scale ~= (scale_param.number_of_scales_test+1)/2 && max(l_pre_map(:))> 0.08
+    if    recovered_scale ~= (scale_param.number_of_scales_test+1)/2 && max(l_pre_map(:))> 0.02 %max(l_pre_map(:))> 0.08
         %         l_off = location_last(1:2)-location(1:2);
         %         map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
@@ -186,17 +219,18 @@ for im2_id = im1_id:fnum
         gsolver.net.empty_net_param_diff();
         
         scale_param.train_sample = get_scale_sample(lfea_s, scale_param.scaleFactors_train, scale_param.scale_window_train);
-        scale_score = gsolver.net.forward({scale_param.train_sample});
-        scale_score = scale_score{1};
-        diff_g = (scale_score-scale_param.y)/length(scale_param.number_of_scales_train);
+        train_scale_score = gsolver.net.forward({scale_param.train_sample});
+        train_scale_score = train_scale_score{1};
+        diff_g = (train_scale_score-scale_param.y)/length(scale_param.number_of_scales_train);
         diff_g = {single(diff_g)};
         
         gsolver.net.backward(diff_g);
         gsolver.apply_update();
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
     end
-
-    if max(l_pre_map(:))> 0.2 && rand(1) > 0.5 || im2_id <6 %update %&& rand(1)>0.5
+    
+    if max(l_pre_map(:))> 0.4 && rand(1) > 0.3 || im2_id <6 %update %&& rand(1)>0.5
+%     if rand(1) > 0.5 || im2_id <6 %update %&& rand(1)>0.5
         fprintf('UPDATE\n');
         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
         roi2 = impreprocess(roi2);
@@ -210,16 +244,57 @@ for im2_id = im1_id:fnum
         lsolver.net.set_net_phase('train');
         for ii = 1:1
             lsolver.net.empty_net_param_diff();
-            l_pre_map = lsolver.net.forward({lfea2});
+            l_pre_map = lsolver.net.forward({lfea2, w0});
             l_pre_map = l_pre_map{1};
+%             pred = sum(l_pre_map(:,:,select),3);
+%             pred = repmat(pred, [1, 1, ensemble_num]);
             diff_l{1} = 0.5*(l_pre_map-map2);
+%             lsolver.net.blobs('w').set_data(wr);
             lsolver.net.backward(diff_l);
             %% first frame
-            l_pre_map = lsolver.net.forward({lfea1});
+            l_pre_map = lsolver.net.forward({lfea1, w0});
+%             l_pre_map = l_pre_map{1};
+%             diff_l{1} = 0.5*(l_pre_map-map1);
+%             
+%             pred = sum(l_pre_map(:,:,select),3);
+%             pred = repmat(pred, [1, 1, ensemble_num]);
+%             diff_l{1} = 0.5*(pred-map1);
+            
             diff_l{1}= 0.5*(l_pre_map{1}-map1);
+%             lsolver.net.blobs('w').set_data(wr);
             lsolver.net.backward(diff_l);
             lsolver.apply_update();
         end
+        lsolver.net.set_net_phase('test');
+%         l_pre_map = lsolver.net.forward({lfea2, w0});
+%         l_pre_map = l_pre_map{1};
+%         pred = sum(l_pre_map(:,:,select),3);
+%         y = reshape(map2(:,:,1), [], 1) - reshape(pred, [], 1);
+%         dist = l_pre_map-map2;
+%         dist = sum(sum(abs(dist)));
+%         dist(select) = inf;
+%         [~, id] = min(dist);
+%         
+%         D = reshape(l_pre_map(:,:,id), [], 1);    
+%       
+%         wt(id) = (D' * D) \ (D' * y);
+        l_pre_map = lsolver.net.forward({lfea2, w00});
+        l_pre_map = l_pre_map{1};
+        y = reshape(map2(:,:,1), [], 1);
+        dist = l_pre_map-map2;
+        dist = sum(sum(abs(dist)));
+        dist(select) = inf;
+        [~, id] = min(dist);
+        select = [select, id];
+         
+        D = reshape(l_pre_map(:,:,select), [], length(select));    
+        
+        wt(select) = momen * wt(select) + lr * reshape(lsqnonneg(double(D), double(y)), 1, 1, length(select));
+%         wt(select) = momen * wt(select) + lr * reshape((D' * D + lambda * eye(length(select))) \ (D' * y), 1, 1, length(select));
+        w0(select) = wt(select);
+        wr(id) = 0;
+        select = [select, id];
+         
     end    
     %     positions(im2_id, :) = location;
     % Drwa resutls
