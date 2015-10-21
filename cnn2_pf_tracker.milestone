@@ -1,4 +1,4 @@
-function cnn2_pf_tracker(set_name, im1_id, ch_num)
+function  [track_success, iter_num, epsilon, data_list, data_empty, restart_frame, lfea1, map1] = cnn2_pf_tracker(set_name, im1_id, ch_num, epsilon, iter_num, Qtfsolver, data_list, data_empty)
 
 cleanupObj = onCleanup(@cleanupFun);
 % rng('default');
@@ -34,14 +34,10 @@ scale_param = init_scale_estimator;
 scale_param.train_sample = get_scale_sample(lfea1, scale_param.scaleFactors_train, scale_param.scale_window_train);
 %%
 max_iter = 80;
-if strcmp('Subway', set_name)
-    max_iter = 180;
-end
-    
 ensemble_num = 100;
 lsolver.net.set_net_phase('train');
 gsolver.net.set_net_phase('train');
-
+Qsolver.net.set_net_phase('train');
 gsolver.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(2), fea_sz(1)]);
 lsolver.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
 
@@ -273,7 +269,7 @@ for im2_id = im1_id:fnum
             end
         end
     end
-    positions(im2_id, :) = location;
+    %     positions(im2_id, :) = location;
     % Drwa resutls
         if im2_id == im1_id,  %first frame, create GUI
             figure('Number','off', 'Name','Tracking Results');
@@ -289,16 +285,21 @@ for im2_id = im1_id:fnum
         saveas(im_handle, sprintf([sample_res '%04d.png'], im2_id));   
         drawnow
     fprintf('\n');
+    if epsilon > 0.1
+        epsilon = epsilon - 1e-6;
+    end
 end
- results{1}.type = 'rect';
- results{1}.res = positions;
- results{1}.startFrame = 1;
- results{1}.annoBegin = 1;
- resutls{1}.len = fnum;
-
-
- save([track_res  lower(set_name) '_fct_scale_base1.mat'], 'results');
- fprintf('Speed: %d fps\n', fnum/t);
+track_success = true;
+restart_frame = nan;
+% results{1}.type = 'rect';
+% results{1}.res = positions;
+% results{1}.startFrame = 1;
+% results{1}.annoBegin = 1;
+% resutls{1}.len = fnum;
+%
+%
+% save([track_res  lower(set_name) '_fct_scale_base1.mat'], 'results');
+% fprintf('Speed: %d fps\n', fnum/t);
 end
 
 function [roi, roi_pos, preim, pad] = ext_roi(im, GT, l_off, roi_size, r_w_scale)

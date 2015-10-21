@@ -13,7 +13,6 @@ if ~isdir(sample_res)
     mkdir(sample_res);
 end
 
-fprintf('epsilon: %f\n', epsilon);
 
 data_path = ['~/Downloads/PF_CNN_SVM/data/' set_name '/'];
 GT = load([data_path 'groundtruth_rect.txt']);
@@ -29,25 +28,13 @@ s2 = pf_param.roi_scale*[scale(1),scale(2)];
 caffe.set_mode_gpu();
 gpu_id = 0;  % we will use the first gpu in this demo
 caffe.set_device(gpu_id);
-%% fsolver init
-% feature_solver_def_file = 'feature_solver.prototxt';
-% model_file = 'VGG_ILSVRC_16_layers.caffemodel';
-% fsolver = caffe.Solver(feature_solver_def_file);
-% fsolver.net.copy_from(model_file);
-% %% Qnet solver init
-% Qnet_solver_def_file = 'solver/Qnet_solver.prototxt';
-% 
-% Qnet_model_path = 'Qnet_model';
-% Qnet_model_file = ['Qnet_model/Qnet_model.caffemodel'];
-% Qsolver = caffe.Solver(Qnet_solver_def_file);
-% if exist(Qnet_model_file, 'file')
-%     Qsolver.net.copy_from(Qnet_model_file);
-% end
-% %% Qsolver for generating target
-% Qtsolver = caffe.Solver(Qnet_solver_def_file);
-fsolver = Qtfsolver.fsolver;
-Qsolver = Qtfsolver.Qsolver;
-Qtsolver = Qtfsolver.Qtsolver;
+
+feature_solver_def_file = 'feature_solver.prototxt';
+model_file = 'VGG_ILSVRC_16_layers.caffemodel';
+fsolver = caffe.Solver(feature_solver_def_file);
+fsolver.net.copy_from(model_file);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% gnet solver init
 gnet_solver_def_file = ['solver/gnet_solver_' num2str(ch_num) '.prototxt'];
 gsolver = caffe.Solver(gnet_solver_def_file);
@@ -64,10 +51,7 @@ forget_rate = 0.9;
 batch_size = 32;
 buffer_size = 20000;
 rl_channel_num = 3;
-fail_frame_thr = 4;
-if strcmp(set_name, 'Coke') || strcmp(set_name, 'Matrix') || strcmp(set_name, 'Soccer') || strcmp(set_name, 'Ironman')
-    fail_frame_thr = 9;
-end
+
 %% 
 roi_size = 361;%368; %380;
 
