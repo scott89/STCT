@@ -34,7 +34,7 @@ scale_param = init_scale_estimator;
 scale_param.train_sample = get_scale_sample(lfea1, scale_param.scaleFactors_train, scale_param.scale_window_train);
 %%
 max_iter = 80;
-if strcmp('Subway', set_name)
+if strcmp('Subway', set_name) || strcmp('Crossing', set_name) || strcmp('Skiing', set_name)
     max_iter = 180;
 end
     
@@ -228,14 +228,14 @@ for im2_id = im1_id:fnum
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
     end
     %% update with different strategies for different feature maps
-    if move && rand(1) > 0.3 || im2_id <5
+    if move && max(l_pre_map(:))> 0.15 && rand(1) > 0.3 || im2_id <5
         fprintf('UPDATE\n');
         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
         roi2 = impreprocess(roi2);
         feature_input.set_data(single(roi2));
         fsolver.net.forward_prefilled();
         lfea2 = feature_blob4.get_data();
-        lfea2 = bsxfun(@times, lfea2, cos_win);
+%         lfea2 = bsxfun(@times, lfea2, cos_win);
         map2 = GetMap(size(im2), fea_sz, roi_size, floor(location), floor(l1_off), s2, pf_param.map_sigma_factor, 'trans_gaussian');
         map2 = permute(map2, [2,1,3]);
         map2 = repmat(single(map2), [1,1,ensemble_num]);
