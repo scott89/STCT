@@ -1,8 +1,6 @@
-function results = cnn2_pf_tracker(set_name, send, init_rec)
-im1_id = send(1);
-end_id = send(2);
+function cnn2_pf_tracker(set_name, im1_id, ch_num)
+
 cleanupObj = onCleanup(@cleanupFun);
-ch_num = 512;
 % rng('default');
 % rng(0);
 rand('state', 0);
@@ -70,7 +68,9 @@ wt0 = w0;
 wt = single(zeros(1, 1, ensemble_num, 1));
 wr = single(ones(100,1));
 eta = 0.2; % weight of selected feature maps
-
+lambda = 0.001; % ridge regression parameter
+lr = 0.; %0.2;
+momen = 1;%0.99;
 scale_thr = 0.05;
 %% Iterations
 for i=1:max_iter
@@ -106,15 +106,15 @@ wr(1:5) = 0;
 select = 1:5;
 
 t=0;
-positions = [];
+fnum = size(GT,1);
+positions = zeros(fnum, 4);
 close all
 gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
 l_pre_map_path = ['l_map/' set_name '/'];
 if ~isdir(l_pre_map_path)
     mkdir(l_pre_map_path);
 end
-start_frame = im1_id;
-for im2_id = start_frame:end_id
+for im2_id = im1_id:fnum
     if im2_id == 72
         1;
     end
@@ -123,7 +123,7 @@ for im2_id = start_frame:end_id
     gsolver.net.set_net_phase('test');
     location_last = location;
     tic
-    fprintf('Processing Img: %d/%d\t', im2_id, end_id);
+    fprintf('Processing Img: %d/%d\t', im2_id, fnum);
     im2_name = sprintf([data_path 'img/%0' num2str(num_z) 'd.jpg'], im2_id);
     im2 = double(imread(im2_name));
     if size(im2,3)~=3
@@ -196,7 +196,7 @@ for im2_id = start_frame:end_id
     t = t + toc;
     fprintf(' scale = %f\n', scale_param.scaleFactors_test(recovered_scale));
     %% show results
-    if im2_id == start_frame
+    if im2_id == im1_id
         figure('Number','off', 'Name','Target Heat Maps');
         subplot(2,2,1);
         im_handle1 = imshow(imresize(l_pre_map-min(l_pre_map(:)), 2.5));
@@ -242,15 +242,7 @@ for im2_id = start_frame:end_id
         gsolver.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
     end
     %% update with different strategies for different feature maps
-    if  im2_id < start_frame -1 + 30 && max(l_pre_map(:))> 0.15 && rand(1) > 0.3 || im2_id < start_frame -1 + 6
-        update = true;
-    elseif im2_id >= start_frame -1 + 30 && move && max(l_pre_map(:))> 0.2 && rand(1) > 0.3
-            update = true;
-    else
-        update = false;
-    end
-    if  update
-% if move && max(l_pre_map(:))> 0.2 && rand(1) > 0.3 || im2_id < start_frame -1 + 6
+    if move && max(l_pre_map(:))> 0.2 && rand(1) > 0.3 || im2_id <5
         fprintf('UPDATE\n');
         roi2 = ext_roi(im2, location, l2_off,  roi_size, s2);
         roi2 = impreprocess(roi2);
@@ -282,10 +274,9 @@ for im2_id = start_frame:end_id
         end
         lsolver.net.set_net_phase('test');
         %% add feature maps
-        if max(l_pre_map(:))> 0.4  && length(select) < ensemble_num %&& length(select) < ensemble_num-15 %&& max(l_pre_map(:)) < 0.5
+        if max(l_pre_map(:))> 0.4  && length(select) < ensemble_num %&& max(l_pre_map(:)) < 0.5
             pred = pred2(:,:,1);
             pred_diff = pred - map2(:,:,1);
-            fprintf('conf: %f - diff: %f\n', max(l_pre_map(:)), max(abs(pred_diff(:))));
             if max(abs(pred_diff(:))) > 0.4
                 dist = sum(sum(abs(diff_l2)));
                 dist(select) = inf;
@@ -296,29 +287,32 @@ for im2_id = start_frame:end_id
             end
         end
     end
-    positions = [positions; location];
+    positions(im2_id, :) = location;
     % Drwa resutls
-        if im2_id == start_frame,  %first frame, create GUI
+        if im2_id == im1_id,  %first frame, create GUI
             figure('Number','off', 'Name','Tracking Results');
             im_handle = imshow(uint8(im2), 'Border','tight', 'InitialMag', 100 + 100 * (length(im2) < 500));
             rect_handle = rectangle('Position', location, 'EdgeColor','r', 'linewidth', 2);
-            text_handle = text(10, 10, sprintf('#%d / %d',im2_id, end_id));
+            text_handle = text(10, 10, sprintf('#%d / %d',im2_id, fnum));
             set(text_handle, 'color', [0 1 1], 'fontsize', 15);
         else
             set(im_handle, 'CData', uint8(im2))
             set(rect_handle, 'Position', location)
-            set(text_handle, 'string', sprintf('#%d / %d',im2_id, end_id));
+            set(text_handle, 'string', sprintf('#%d / %d',im2_id, fnum));
         end
         saveas(im_handle, sprintf([sample_res '%04d.png'], im2_id));   
         drawnow
     fprintf('\n');
 end
- results.type = 'rect';
- results.res = positions;
+ results{1}.type = 'rect';
+ results{1}.res = positions;
+ results{1}.startFrame = 1;
+ results{1}.annoBegin = 1;
+ resutls{1}.len = fnum;
 
 
-%  save([track_res  lower(set_name) '_fct_scale_base1.mat'], 'results');
- fprintf('Speed: %d fps\n', end_id/t);
+ save([track_res  lower(set_name) '_fct_scale_base1.mat'], 'results');
+ fprintf('Speed: %d fps\n', fnum/t);
 end
 
 function [roi, roi_pos, preim, pad] = ext_roi(im, GT, l_off, roi_size, r_w_scale)

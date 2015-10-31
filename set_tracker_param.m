@@ -3,7 +3,7 @@ pf_param = struct('affsig', [10,10,.004,.00,0.00,0], 'p_sz', 64,...
    
 close all;
 
-track_res = ['benchmark_res/'];
+track_res = ['benchmark50_res/'];
 sample_res = ['sample_res/' set_name '/'];
 if ~isdir(track_res)
     mkdir(track_res);
@@ -14,19 +14,25 @@ if ~isdir(sample_res)
 end
 
 
-data_path = ['~/Downloads/PF_CNN_SVM/data/' set_name '/'];
-GT = load([data_path 'groundtruth_rect.txt']);
-dia = (GT(im1_id, 3)^2+GT(im1_id, 4)^2)^0.5;
-
+data_path = ['~/TB50/' set_name '/'];
+try
+    GT = load([data_path 'groundtruth_rect.txt']);
+catch
+    data_path = ['~/TB100/' set_name '/' set_name '/'];
+    GT = load([data_path 'groundtruth_rect.txt']);
+end
+% dia = (GT(im1_id, 3)^2+GT(im1_id, 4)^2)^0.5;
+dia = (init_rec(3)^2+init_rec(4)^2)^0.5;
 % scale = gt(1, 3)/ gt (1, 4);
-scale = [dia/GT(im1_id, 3), dia/GT(im1_id, 4)];
+% scale = [dia/GT(im1_id, 3), dia/GT(im1_id, 4)];
+scale = [dia/init_rec(3), dia/init_rec(4)];
 l1_off = [0,0];
 l2_off = [0,0];
 s1 = pf_param.roi_scale*[scale(1),scale(2)];
 s2 = pf_param.roi_scale*[scale(1),scale(2)];
 %% init caffe
 caffe.set_mode_gpu();
-gpu_id = 0;  % we will use the first gpu in this demo
+gpu_id = 2;  % we will use the first gpu in this demo
 caffe.set_device(gpu_id);
 
 feature_solver_def_file = 'feature_solver.prototxt';
@@ -58,7 +64,7 @@ roi_size = 361;%368; %380;
 mean_pix = [103.939, 116.779, 123.68]; 
 
 % fnum = 20;
-location = GT(im1_id,:);
+location = init_rec;
 % location = GT(1,:);
 pf_param.ratio = location(3)/pf_param.p_sz;
 pf_param.affsig(3) = pf_param.affsig(3)*pf_param.ratio;
