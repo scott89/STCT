@@ -17,7 +17,7 @@ trackers=configTrackers;
 
 shiftTypeSet = {'left','right','up','down','topLeft','topRight','bottomLeft','bottomRight','scale_8','scale_9','scale_11','scale_12'};
 
-evalType='OPE'; %'OPE','SRE','TRE'
+evalType='SRE'; %'OPE','SRE','TRE'
 
 % diary(['./tmp/' evalType '.txt']);
 
@@ -26,6 +26,7 @@ numTrk=length(trackers);
 
 finalPath = ['./results/results_' evalType '_CVPR13/'];
 finalPath = 'benchmark50_res/';
+finalPath = 'OBT50_SRE/';
 if ~exist(finalPath,'dir')
     mkdir(finalPath);
 end
@@ -53,10 +54,11 @@ for idxSeq=1:length(seqs)
         image_no = s.startFrame + (i-1);
         id = sprintf(nz,image_no);
         s.s_frames{i} = strcat(s.path,id,'.',s.ext);
+        s.s_frames{i} = ['~/TB50/' upper(s.name(1)) s.name(2:end) '/img/' id '.' s.ext];
     end
     %
-    %     img = imread(s.s_frames{1});
-    %     [imgH,imgW,ch]=size(img);
+        img = imread(s.s_frames{1});
+        [imgH,imgW,ch]=size(img);
     pathAnno = ['/home/ljwang/TB50/' upper(s.name(1)) s.name(2:end) '/'];
     try
         rect_anno = dlmread([pathAnno 'groundtruth_rect.txt']);
