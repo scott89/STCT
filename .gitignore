@@ -7,3 +7,4 @@
 *.png
 obt
 old
+!video/Basketball/img/*jpg
