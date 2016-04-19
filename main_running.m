@@ -3,7 +3,7 @@ clear
 clc
 warning off all;
 
-% addpath('./util');
+addpath('obt');
 
 % addpath(('D:\vlfeat-0.9.14\toolbox'));
 % vl_setup
@@ -17,7 +17,7 @@ trackers=configTrackers;
 
 shiftTypeSet = {'left','right','up','down','topLeft','topRight','bottomLeft','bottomRight','scale_8','scale_9','scale_11','scale_12'};
 
-evalType='SRE'; %'OPE','SRE','TRE'
+evalType='OPE'; %'OPE','SRE','TRE'
 
 % diary(['./tmp/' evalType '.txt']);
 
@@ -40,7 +40,7 @@ end
 
 % pathAnno = './anno/';
 
-for idxSeq=1:length(seqs)
+for idxSeq=length(seqs)-2
     s = seqs{idxSeq};
     
     %      if ~strcmp(s.name, 'coke')
@@ -54,12 +54,12 @@ for idxSeq=1:length(seqs)
         image_no = s.startFrame + (i-1);
         id = sprintf(nz,image_no);
         s.s_frames{i} = strcat(s.path,id,'.',s.ext);
-        s.s_frames{i} = ['~/TB50/' upper(s.name(1)) s.name(2:end) '/img/' id '.' s.ext];
+        s.s_frames{i} = ['/home/lijun/Research/CVPR16/Data/data/' upper(s.name(1)) s.name(2:end) '/img/' id '.' s.ext];
     end
     %
         img = imread(s.s_frames{1});
         [imgH,imgW,ch]=size(img);
-    pathAnno = ['/home/ljwang/TB50/' upper(s.name(1)) s.name(2:end) '/'];
+    pathAnno = ['/home/lijun/Research/CVPR16/Data/data/' upper(s.name(1)) s.name(2:end) '/'];
     try
         rect_anno = dlmread([pathAnno 'groundtruth_rect.txt']);
     catch
@@ -102,22 +102,6 @@ for idxSeq=1:length(seqs)
     
     for idxTrk=1:numTrk
         t = trackers{idxTrk};
-        
-        %         if ~strcmp(t.name, 'LSK')
-        %             continue;
-        %         end
-        
-        % validate the results
-        
-%         if exist([finalPath s.name '_' t.name '.mat'])
-%             load([finalPath s.name '_' t.name '.mat']);
-%             bfail=checkResult(results, subAnno);
-%             if bfail
-%                 disp([s.name ' '  t.name]);
-%             end
-%             continue;
-%         end
-        
         switch t.name
             case {'VTD','VTS'}
                 continue;
