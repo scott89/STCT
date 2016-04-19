@@ -1,0 +1,39 @@
+name: "gnet"
+force_backward: true
+input: "data"
+input_dim: 33
+input_dim: 512
+input_dim: 46
+input_dim: 46
+
+layers { 
+  bottom: "data"
+  top: "drop_data"
+  name: "drop_data"
+  type: DROPOUT
+  dropout_param {
+    dropout_ratio: 0.4
+  }
+}
+layers {
+  bottom: "drop_data"
+  top: "conv5_f2"
+  name: "conv5_f2"
+  type: INNER_PRODUCT
+  blobs_lr:1
+  blobs_lr:2
+  weight_decay: 1
+  weight_decay: 0
+  inner_product_param {
+    num_output: 1
+    weight_filler {
+      type: "gaussian"
+      std: 1e-7
+    }
+    bias_filler {
+      type: "constant"
+      value: 0.0
+    }
+  }
+}
+
