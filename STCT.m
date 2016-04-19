@@ -232,14 +232,11 @@ for im2_id = start_frame:end_id
             im_handle = imshow(uint8(im2), 'Border','tight', 'InitialMag', 100 + 100 * (length(im2) < 500));
             rect_handle = rectangle('Position', location, 'EdgeColor','r', 'linewidth', 2);
             text_handle = text(10, 10, sprintf('#%d / %d',im2_id, end_id));
-            set(text_handle, 'color', [0 1 1], 'fontsize', 15);
+            set(text_handle, 'color', [1 1 0], 'fontsize', 16, 'fontweight', 'bold');
         else
             set(im_handle, 'CData', uint8(im2))
             set(rect_handle, 'Position', location)
             set(text_handle, 'string', sprintf('#%d / %d',im2_id, end_id));
-        end
-        if mod(im2_id, 20) == 0
-            saveas(im_handle, sprintf([sample_res '%04d.png'], im2_id)); 
         end
         drawnow
     fprintf('\n');
