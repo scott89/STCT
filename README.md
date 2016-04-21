@@ -14,7 +14,7 @@ STCT is an online visual tracking algorithm by sequentailly training convolution
 * Installation: 
  1. Install caffe: we use a modified version of the original caffe framework. Compile the source code in the ./caffe directory and the matlab interface following the [installation instruction of caffe](http://caffe.berkeleyvision.org/installation.html).
  2. Download the 16-layer VGG network from https://gist.github.com/ksimonyan/211839e770f7b538e2d8, and put the caffemodel file under the ./model directory.
- 3. Run the demo code run.m. You can customize your own test sequences following this example.
+ 3. Run the demo code demo_STCT.m. You can customize your own test sequences following this example.
 
 ### Citing Our Work
 
