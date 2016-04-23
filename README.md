@@ -1,7 +1,7 @@
 ## STCT: Sequentially Training Convolutional Networks for Visual Tracking 
 
 ### Introduction
-STCT is an online visual tracking algorithm by sequentailly training convolutional neural networks. This package contains the source code to reproduce the experimental results of STCT reported in our [CVPR 2016 paper](http://202.118.75.4/lu/Paper/ICCV2015/iccv15_lijun.pdf). The source code is mainly written in MATLAB with .
+STCT is an online visual tracking algorithm by sequentailly training convolutional neural networks. This package contains the source code to reproduce the experimental results of STCT reported in our [CVPR 2016 paper](http://202.118.75.4/lu/Paper/CVPR2016/wanglijun/0112.pdf). The source code is mainly written in MATLAB with .
 
 ### Usage
 
