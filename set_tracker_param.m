@@ -1,7 +1,8 @@
 close all;
 addpath('caffe/matlab/', 'util');
 
-data_path = [seq.path seq.name '/'];
+% data_path = [seq.path seq.name '/'];
+data_path = seq.path(1:end-4);
 imgs = dir([data_path 'img/*.jpg']);
 im1_id = seq.startFrame;
 end_id = seq.endFrame;
@@ -14,7 +15,7 @@ gpu_id = 0;
 caffe.set_mode_gpu();
 caffe.set_device(gpu_id);
 feature_solver_def_file = 'model/feature_solver.prototxt';
-model_file = 'model/VGG_ILSVRC_16_layers.caffemodel';
+model_file = '/home/lijun/Research/Code/FCT_scale_base/model/VGG_ILSVRC_16_layers.caffemodel';
 fsolver = caffe.Solver(feature_solver_def_file);
 fsolver.net.copy_from(model_file);
 %% spn solver

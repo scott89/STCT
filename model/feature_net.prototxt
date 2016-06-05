@@ -2,12 +2,8 @@ name: "VGG_ILSVRC_16_layers"
 input: "data"
 input_dim: 1
 input_dim: 3
-#input_dim: 232
-#input_dim: 232
 input_dim: 280 #361 #368 # 380
 input_dim: 280 #361 #368 # 380
-#input_dim: 480
-#input_dim: 480
 layers {
   bottom: "data"
   top: "conv1_1"
@@ -292,15 +288,15 @@ layers {
 #  name: "pool3_out"
 #  type: SPLIT
 #}
-
-layers {
-  bottom: "conv4_3"
-  top: "conv4_3_out"
-#  top: "conv4_3_out2"
-  name: "conv4_3_out"
-  type: SPLIT
-}
-##
+#
+#layers {
+#  bottom: "conv4_3"
+#  top: "conv4_3_out"
+##  top: "conv4_3_out2"
+#  name: "conv4_3_out"
+#  type: SPLIT
+#}
+###
 ##layers {
 ##  bottom: "conv1_2"
 ##  top: "conv1_2_out"
