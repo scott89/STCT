@@ -36,38 +36,49 @@ scale_param.train_sample = get_scale_sample(deep_feature1, scale_param.scaleFact
 %     max_iter = 180;
 % end
 
-cnna.net.set_net_phase('train');
 spn.net.set_net_phase('train');
 
 spn.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(2), fea_sz(1)]);
-cnna.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
+% cnna.net.set_input_dim([0, 1, fea_sz(3), fea_sz(2), fea_sz(1)]);
 
 %% prepare training samples
 map1 =  GetMap(size(im1), fea_sz, roi_size, location, center_off, roi_scale_factor, map_sigma_factor, 'trans_gaussian');
 map1 = permute(map1, [2,1,3]);
-map1 = repmat(single(map1), [1,1,ensemble_num]);
+% map1 = repmat(single(map1), [1,1,ensemble_num]);
 
 
 %% Iterations
 last_loss = 0;
 for i=1:max_iter
     spn.net.empty_net_param_diff();
-    cnna.net.empty_net_param_diff();
-    pre_heat_map1 = cnna.net.forward({deep_feature1, w0});
+    fsolver.net.empty_net_param_diff();
+    pre_heat_map1 = fsolver.net.forward({single(roi1)});
     scale_score = spn.net.forward({scale_param.train_sample});
     pre_heat_map = pre_heat_map1{1};
     scale_score = scale_score{1};
     diff_cnna = pre_heat_map-map1;
     diff_spn = (scale_score-scale_param.y)/length(scale_param.number_of_scales_train);
-    cnna.net.backward({single(diff_cnna)});
+    fsolver.net.backward({single(diff_cnna)});
     spn.net.backward({single(diff_spn)});
-    cnna.apply_update();
+    fsolver.apply_update();
     spn.apply_update();
     fprintf('Iteration %03d/%03d, CNN-A Loss %0.1f, SPN Loss %0.1f\n', i, max_iter, sum(abs(diff_cnna(:))), sum(abs(diff_spn(:))));  
     if i == 80 && sum(abs(diff_cnna(:))) - last_loss <= 0
         break;
     end
-    last_loss = sum(abs(diff_cnna(:)));      
+    last_loss = sum(abs(diff_cnna(:)));
+    if i == 1,  %first frame, create GUI
+        figure('Name','Tracking Results');
+    subplot(1,2,1);
+       im_handle_init1 = imagesc(pre_heat_map);
+       subplot(1,2,2);
+       stem(scale_score);
+       im_handle_init2 = gca;
+    else
+       set(im_handle_init1, 'CData', pre_heat_map)
+       stem(im_handle_init2, scale_score);
+    end
+    drawnow;
 end
 %% ================================================================
 %% initialize weight

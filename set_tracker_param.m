@@ -22,8 +22,8 @@ fsolver.net.copy_from(model_file);
 spn_solver_def_file = 'model/spn_solver.prototxt';
 spn = caffe.Solver(spn_solver_def_file);
 %% cnn-a solver
-cnna_solver_def_file = 'model/cnn-a_solver.prototxt'; 
-cnna = caffe.Solver(cnna_solver_def_file);
+% cnna_solver_def_file = 'model/cnn-a_solver.prototxt'; 
+% cnna = caffe.Solver(cnna_solver_def_file);
 max_iter = 180;
 mean_pix = [103.939, 116.779, 123.68]; 
 

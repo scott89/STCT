@@ -9,24 +9,9 @@ input_dim: 46 #48
 input_dim: 46 #48
 #input_dim: 480
 #input_dim: 480
-input: "w0"
-input_dim: 1 
-input_dim: 100
-input_dim: 1
-input_dim: 1
-
-layer { 
-  bottom: "data"
-  top: "drop_data"
-  name: "drop_data"
-  type: "Dropout"
-  dropout_param {
-    dropout_ratio: 0.
-  }
-}
 
 layer {
-  bottom: "drop_data"
+  bottom: "data"
   top: "conv5_f1"
   name: "conv5_f1"
   type: "Convolution"
