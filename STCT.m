@@ -2,7 +2,7 @@ function results = STCT(seq)
 cleanupObj = onCleanup(@cleanupFun);
 rand('state', 0);
 set_tracker_param;
-middle_layer = 22;
+middle_layer = 32;
 last_layer = 42;
 % middle_layer = 17;
 % last_layer = 21;
@@ -31,6 +31,7 @@ fsolver.net.forward_prefilled();
 deep_feature1 = feature_blob4.get_data();
 fea_sz = size(deep_feature1);
 cos_win = single(hann(fea_sz(1)) * hann(fea_sz(2))');
+% cos_img = single(hann(roi_size) * hann(roi_size)');
 deep_feature1 = bsxfun(@times, deep_feature1, cos_win);
 scale_param.train_sample = get_scale_sample(deep_feature1, scale_param.scaleFactors_train, scale_param.scale_window_train);
 %% ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -43,6 +44,7 @@ spn.net.set_input_dim([0, scale_param.number_of_scales_train, fea_sz(3), fea_sz(
 %% prepare training samples
 
 fs = -1:1;
+% fs = 0;
 roi1 = zeros(roi_size, roi_size, 3, length(fs));
 map1 = zeros(fea_sz(1), fea_sz(2), 1, length(fs));
 
@@ -124,6 +126,7 @@ for im2_id = start_frame:end_id
 
     
     pre_heat_map = permute(pre_heat_map{1}, [2,1]);
+    pre_heat_map = cos_win .* pre_heat_map;
     %% compute local confidence
     pre_heat_map_upscale = imresize(pre_heat_map, roi_pos(4:-1:3));
     pre_img_map = padded_zero_map;
@@ -194,7 +197,8 @@ for im2_id = start_frame:end_id
     %% update with different strategies for different feature maps
     if  im2_id < start_frame -1 + 30 && max(pre_heat_map(:))> 0.15 && rand(1) > 0.3 || im2_id < start_frame -1 + 6
         update = true;
-    elseif im2_id >= start_frame -1 + 30 && move && max(pre_heat_map(:))> 0.2 && rand(1) > 0.3
+%     elseif im2_id >= start_frame -1 + 30 && move && max(pre_heat_map(:))> 0.2 && rand(1) > 0.3
+    elseif im2_id >= start_frame -1 + 30 && move && max(pre_heat_map(:))> 0.2 && max(pre_heat_map(:)) < 0.4
             update = true;
     else
         update = false;
