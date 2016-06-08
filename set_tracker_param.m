@@ -16,6 +16,8 @@ caffe.set_mode_gpu();
 caffe.set_device(gpu_id);
 feature_solver_def_file = 'model/feature_solver.prototxt';
 model_file = '/home/lijun/Research/Code/FCT_scale_base/model/VGG_ILSVRC_16_layers.caffemodel';
+% model_file = '/home/lijun/Downloads/vgg16CAM_train_iter_90000.caffemodel';
+
 fsolver = caffe.Solver(feature_solver_def_file);
 fsolver.net.copy_from(model_file);
 %% spn solver
@@ -35,13 +37,9 @@ roi_scale = 2;
 roi_scale_factor = roi_scale*[rec_scale_factor(1),rec_scale_factor(2)];
 map_sigma_factor = 1/12;
 roi_size = 361;
+
 location = seq.init_rect;
 %% init ensemble parameters
-ensemble_num = 100;
-w0 = single(ones(1, 1, ensemble_num, 1));
-wt0 = w0;
-wt = single(zeros(1, 1, ensemble_num, 1));
-eta = 0.2; % weight of selected feature maps
 %% Init scale parameters
 scale_param = init_scale_estimator;
 %%
