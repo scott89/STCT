@@ -281,7 +281,7 @@ layer {
   type: "Convolution"
   param {
     lr_mult: 1
-    decay_mult: 1000
+    decay_mult: 10
   }
   param {
     lr_mult: 2
@@ -319,7 +319,7 @@ layer {
   type: "Convolution"
   param {
     lr_mult: 1
-    decay_mult: 1000
+    decay_mult: 10
   }
   param {
     lr_mult: 2
@@ -356,10 +356,10 @@ layer {
   type: "Convolution"
   param {
     lr_mult: 1
-    decay_mult: 1000
+    decay_mult: 10
   }
   param {
-    lr_mult: 2
+    lr_mult: 2e6
     decay_mult: 0
   }
   convolution_param {
@@ -383,27 +383,30 @@ layer {
   name: "conva_1_5"
   type: "Deconvolution"
   param {
-    lr_mult: 1000
-    decay_mult: 1
+    lr_mult: 1
+    decay_mult: 0.01
   }
-  param {
-    lr_mult: 200
-    decay_mult: 0
-  }
+  #param {
+  #  lr_mult: 2
+  #  decay_mult: 0
+  #}
   convolution_param {
     num_output: 10
     group: 10
-    pad: 4
+    pad: 1
     stride: 2
-    kernel_size: 10
+    kernel_size: 4
     weight_filler {
-      type: "gaussian"
-      std: 1e-2
+      #type: "gaussian"
+      #std: 1e-3
+        type: "constant"
+        value: 0.01
     }
-    bias_filler {
-      type: "constant"
-      value: 0
-    }
+    bias_term: false
+    #bias_filler {
+    #  type: "constant"
+    #  value: 0
+    #}
   }
 }
 
@@ -428,15 +431,21 @@ layer {
         axis: 1
     }
 }
+layer {
+    bottom: "conva_1"
+    top: "conva_1_norm"
+    name: "mvna_1"
+    type: "MVN"
+}
 
 layer {
-  bottom: "conva_1"
+  bottom: "conva_1_norm"
   top: "conva_2"
   name: "conva_2"
   type: "Convolution"
   param {
     lr_mult: 1
-    decay_mult: 1
+    decay_mult: 0.01
   }
   param {
     lr_mult: 2
@@ -444,9 +453,9 @@ layer {
   }
   convolution_param {
     num_output: 10
-    pad: 2
+    pad: 3
   #  mask: true
-    kernel_size: 5
+    kernel_size: 7
     weight_filler {
       type: "gaussian"
       std: 1e-2 #1e-7
@@ -474,7 +483,7 @@ layer {
   type: "Convolution"
   param {
     lr_mult: 1
-    decay_mult: 1
+    decay_mult: 0.01
   }
   param {
     lr_mult: 2

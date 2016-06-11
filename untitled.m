@@ -46,7 +46,11 @@ subplot(1,2,2); imshow(mat2gray(pre4));
 
  im2_name = sprintf([data_path 'img/%0' num2str(num_z) 'd.jpg'], 4);
  im2 = double(imread(im2_name));
-
+ if size(im2,3)~=3
+        im2(:,:,2) = im2(:,:,1);
+        im2(:,:,3) = im2(:,:,1);
+ end 
+    
 fs = -7:7;
 for i = 1:length(fs)
 %     center_off = rand(1,2) * 200 - 100;
@@ -70,7 +74,9 @@ pre = fsolver.net.forward({single(roi)});
 % figure(22); bar(a(i*512+1:i*512+512)); pause
 % end
 
-a = fsolver.net.blobs('conva_1').get_data();
+a = fsolver.net.blobs('conva_1_5').get_data();
+b = fsolver.net.blobs('conva_1_5_down').get_data();
 for i = 1:size(a, 3)
-figure(22); imagesc(permute(a(:,:,i), [2,1,3])); title(num2str(i));pause
+    figure(22); subplot(1,2,1);imagesc(permute(b(:,:,i), [2,1,3])); title(num2str(i))
+figure(22); subplot(1,2,2);imagesc(permute(a(:,:,i), [2,1,3])); title(num2str(i));pause
 end

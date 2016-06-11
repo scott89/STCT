@@ -26,14 +26,14 @@ spn = caffe.Solver(spn_solver_def_file);
 %% cnn-a solver
 % cnna_solver_def_file = 'model/cnn-a_solver.prototxt'; 
 % cnna = caffe.Solver(cnna_solver_def_file);
-max_iter = 150;
+max_iter = 100;%150;
 mean_pix = [103.939, 116.779, 123.68]; 
 
 %% Init location parameters
 dia = (seq.init_rect(3)^2+seq.init_rect(4)^2)^0.5;
 rec_scale_factor = [dia/seq.init_rect(3), dia/seq.init_rect(4)];
 center_off = [0,0];
-roi_scale = 2;
+roi_scale = 2.5;
 roi_scale_factor = roi_scale*[rec_scale_factor(1),rec_scale_factor(2)];
 map_sigma_factor = 1/12;
 roi_size = 361;
