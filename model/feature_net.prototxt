@@ -453,9 +453,9 @@ layer {
   }
   convolution_param {
     num_output: 10
-    pad: 3
+    pad: 2
   #  mask: true
-    kernel_size: 7
+    kernel_size: 5
     weight_filler {
       type: "gaussian"
       std: 1e-2 #1e-7
