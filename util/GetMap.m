@@ -35,6 +35,7 @@ elseif strcmp(type, 'gaussian')
     end
     
 elseif strcmp(type, 'trans_gaussian')
+    location = round(location);
     sz = location([4,3]);
 %     output_sigma_factor = 1/32;%1/16;
    % [rs, cs] = ndgrid((1:sz(1)) - floor(sz(1)/2), (1:sz(2)) - floor(sz(2)/2));

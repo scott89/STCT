@@ -1,4 +1,4 @@
-net: 'model/feature_net.prototxt'
+net: '/home/lijun/Research/Code/tracker_benchmark_v1.0/trackers/STCT/model/feature_net.prototxt'
 #test_iter: 1000 
 #test_interval: 1000
 ##update_interval: 2
@@ -19,5 +19,6 @@ device_id: 0
 #debug_info: false
 #debug_display: 1000
 #random_seed: 7301274918649171
+random_seed: 701
 regularization_type: "L1"
 clip_gradients: 50
