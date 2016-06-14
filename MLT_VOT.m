@@ -8,6 +8,7 @@ if size(im1,3)~=3
     im1(:,:,2) = im1(:,:,1);
     im1(:,:,3) = im1(:,:,1);
 end
+[init_rect] = region2location(im1, init_rect);
 set_tracker_param;
 middle_layer = 32;
 last_layer = 43;
@@ -136,6 +137,7 @@ close all
 spn.net.set_input_dim([0, scale_param.number_of_scales_test, fea_sz(3), fea_sz(2), fea_sz(1)]);
 im2_id = 0;
 start_frame = 1;
+last_conf = 10;
 while true
       [handle, im2_name] = handle.frame(handle); % Get the next frame
 
@@ -155,7 +157,7 @@ while true
         
     fsolver.net.set_net_phase('test');
     spn.net.set_net_phase('test');
-    fprintf('Processing Img: %d\t', im2_id);
+%     fprintf('Processing Img: %d\t', im2_id);
    
     %% extract roi and display
     [roi2, roi_pos, padded_zero_map, pad] = ext_roi(im2, location, center_off,  roi_size, roi_scale_factor);
@@ -176,7 +178,8 @@ while true
     center_x = mean(center_x);
     center_y = mean(center_y);
     %% local scale estimation
-    move = max(pre_heat_map(:)) > 0.1;
+    move = max(pre_heat_map(:)) > 0.1 && max(pre_heat_map(:)) - last_conf >-0.25;
+    last_conf = max(pre_heat_map(:));
     if move      
         base_location = [center_x - location(3)/2, center_y - location(4)/2, location([3,4])];
         roi2 = ext_roi(im2, base_location, center_off, roi_size, roi_scale_factor);
@@ -261,6 +264,8 @@ while true
         %     elseif im2_id >= start_frame -1 + 30 && move && max(pre_heat_map(:))> 0.2 && rand(1) > 0.3
     elseif im2_id >= start_frame -1 + 30 && move && max(pre_heat_map(:))> 0.2 && max(pre_heat_map(:)) < 0.5
         update = true;
+    elseif im2_id >= start_frame -1 + 30 && move && max(pre_heat_map(:))> 0.7
+         update = true;
     else
         update = false;
     end
@@ -312,6 +317,44 @@ end
 
 
 
+function [location] = region2location(I, region, varargin)
+
+    gray = double(rgb2gray(I));
+
+    [height, width] = size(gray);
+
+    % If the provided region is a polygon ...
+    if numel(region) > 4
+        num = numel(region)/4;
+%         x1 = round(min(region(1:2:end)));
+%         x2 = round(max(region(1:2:end)));
+%         y1 = round(min(region(2:2:end)));
+%         y2 = round(max(region(2:2:end)));
+       x1 = round(sort(region(1:2:end), 'ascend'));
+       x1 = round(mean(x1(1:num)));
+       x2 = round(sort(region(1:2:end), 'descend'));
+       x2 = round(mean(x2(1:num)));
+       y1 = round(sort(region(2:2:end), 'ascend'));
+       y1 = round(mean(y1(1:num)));
+       y2 = round(sort(region(2:2:end), 'descend'));
+       y2 = round(mean(y2(1:num)));
+       
+        region = round([x1, y1, x2 - x1, y2 - y1]);
+    else
+        region = round([round(region(1)), round(region(2)), ... 
+            round(region(1) + region(3)) - round(region(1)), ...
+            round(region(2) + region(4)) - round(region(2))]);
+    end;
+
+    x1 = max(0, region(1));
+    y1 = max(0, region(2));
+    x2 = min(width-1, region(1) + region(3) - 1);
+    y2 = min(height-1, region(2) + region(4) - 1);
+
+
+    location = [x1, y1, x2 - x1 + 1, y2 - y1 + 1];
+
+end
 
 
 

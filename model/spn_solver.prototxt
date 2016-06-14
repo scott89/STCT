@@ -3,7 +3,7 @@ net: '/home/lijun/Research/Code/tracker_benchmark_v1.0/trackers/STCT/model/spn.p
 #test_interval: 1000
 ##update_interval: 2
 lr_policy: "step"
-base_lr: 1e-10 #5e-6 #8e-7 #1e-6 #1~4e-7 #3e-7 #5e-7 #1e-9 #4e-8#  1e-9 #2e-8#5e-8#1e-8 #7e-8 #7e-6 #5e-7  #1.2e-6 #8e-7 #1e-9
+base_lr: 2e-10 #5e-6 #8e-7 #1e-6 #1~4e-7 #3e-7 #5e-7 #1e-9 #4e-8#  1e-9 #2e-8#5e-8#1e-8 #7e-8 #7e-6 #5e-7  #1.2e-6 #8e-7 #1e-9
 gamma: 0.1
 stepsize: 120000
 display: 1
