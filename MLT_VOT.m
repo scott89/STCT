@@ -1,6 +1,7 @@
 function MLT_VOT
 cleanupObj = onCleanup(@cleanupFun);
-rand('state', 0);
+% rand('state', 0);
+RandStream.setGlobalStream(RandStream('mt19937ar', 'Seed', sum(clock)));
 [handle, image, init_rect] = vot('rectangle'); % Obtain communication object
 
 im1 = double(imread(image));
